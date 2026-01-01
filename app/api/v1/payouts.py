@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 async def process_batch_payouts(payout_data: PayoutCreate) -> None:
-    """Proceso asíncrono batch para generar payouts en segundo plano."""
+    """Background task to generate payouts asynchronously within atomic transaction."""
     try:
         logger.info(
             f"Background task started for restaurant {payout_data.restaurant_id}"

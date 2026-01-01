@@ -52,6 +52,23 @@ class LedgerRepository:
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
+    async def get_available_balance_with_lock(
+        self, restaurant_id: str, currency: str = "PEN"
+    ) -> int:
+        """Get available balance with row-level locking to prevent race conditions in payout generation."""
+        stmt = (
+            select(func.coalesce(func.sum(LedgerEntry.amount_cents), 0))
+            .where(LedgerEntry.restaurant_id == restaurant_id)
+            .where(LedgerEntry.currency == currency)
+            .where(
+                (LedgerEntry.available_at.is_(None))
+                | (LedgerEntry.available_at <= func.now())
+            )
+            .with_for_update()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
+
     async def get_pending_balance(
         self, restaurant_id: str, currency: str = "PEN"
     ) -> int:

@@ -20,6 +20,7 @@ class PayoutGenerator:
         self.ledger_service = LedgerService(session)
 
     async def generate_payout(self, payout_data: PayoutCreate) -> int:
+        """Generate payout with row-level locking. Must be called within transaction context."""
         restaurant_id = payout_data.restaurant_id
         currency = payout_data.currency
 
@@ -32,11 +33,11 @@ class PayoutGenerator:
             )
             raise PendingPayoutException(restaurant_id)
 
-        available_balance = await self.ledger_repo.get_available_balance(
+        available_balance = await self.ledger_repo.get_available_balance_with_lock(
             restaurant_id, currency
         )
         logger.info(
-            f"Restaurant {restaurant_id} available balance: {available_balance} cents"
+            f"Restaurant {restaurant_id} available balance (locked): {available_balance} cents"
         )
 
         if available_balance < self.MIN_PAYOUT_AMOUNT:
