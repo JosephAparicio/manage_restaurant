@@ -137,10 +137,16 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 - Documentation (ADRs, architecture, database design)
 - Project structure
 
-**Phase 2: Implementation** 🔄 NEXT
-- Models → Repositories → Services → API
+**Phase 2: Implementation** ✅ COMPLETE
+- SQLAlchemy models (4 tables)
+- Async repositories (restaurant, event, ledger, payout)
+- Services (event processor, ledger, balance calculator, payout generator)
+- API endpoints (4 endpoints with v1 prefix)
 
-**Phase 3: Testing** ⏳ PENDING
+**Phase 3: Testing** 🔄 NEXT
+- Docker Compose setup
+- Integration tests (idempotency, balance, payouts)
+- E2E testing
 
 **Phase 4: Deployment** ⏳ PENDING
 
@@ -150,11 +156,9 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 
 **Commit phases** (per PDF recommendation):
 1. **Schema** - Database design, indexes, Q1-Q4 queries ✅
-2. **Ingestion** - Event models, repositories, processor service, endpoint
-3. **Ledger/Balance** - Ledger entries, balance calculation logic
-4. **Payouts** - Payout generation with row locking
-5. **Tests** - Integration tests (idempotency, balance, payouts)
-6. **Docs** - Final documentation updates
+2. **Phase 2** - Models, repositories, services, API endpoints ✅
+3. **Tests** - Integration tests (idempotency, balance, payouts) 🔄 NEXT
+4. **Deployment** - Docker, final validation ⏳ PENDING
 
 **Guidelines:**
 - Small commits (one logical change)

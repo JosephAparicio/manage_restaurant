@@ -285,9 +285,7 @@ Advanced PostgreSQL queries demonstrating:
 
 - **[PLAN.md](PLAN.md)** - Development plan (schema, idempotency, endpoints, payouts, testing, trade-offs)
 - **[docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md)** - 10 Architecture Decision Records
-- **[docs/ARCHITECTURE_STRATEGY.md](docs/ARCHITECTURE_STRATEGY.md)** - Complete architecture guide
-- **[docs/database/](docs/database/)** - Database design documentation
+- **[docs/ARCHITECTURE_STRATEGY.md](docs/ARCHITECTURE_STRATEGY.md)** - Complete
 
 ---
-
-**Last Updated:** December 31, 2025
+**Last Updated:** January 1, 2026
