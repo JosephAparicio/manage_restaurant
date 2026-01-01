@@ -676,6 +676,109 @@ except IntegrityError:
 | ADR-008 | No database triggers | Medium | ✅ Implemented |
 | ADR-009 | ON DELETE RESTRICT | Medium | ✅ Implemented |
 | ADR-010 | 201 vs 200 status codes | Low | ✅ Implemented |
+| ADR-011 | Custom exception hierarchy | High | ✅ Implemented |
+
+---
+
+## ADR-011: Custom Exception Hierarchy with Global Handler
+
+**Status:** ✅ Implemented
+
+### Context
+
+How should the API handle and communicate errors consistently across all endpoints?
+
+**Option A: FastAPI HTTPException Only**
+```python
+from fastapi import HTTPException
+raise HTTPException(status_code=404, detail="Restaurant not found")
+```
+
+**Option B: Custom Exception Hierarchy**
+```python
+from app.exceptions import RestaurantNotFoundException
+raise RestaurantNotFoundException(restaurant_id="res_001")
+```
+
+### Decision
+
+**Implement custom exception hierarchy with global exception handlers.**
+
+**Structure:**
+```python
+# app/exceptions.py
+class BaseAPIException(Exception):
+    status_code: int
+    error_code: str
+    message: str
+    details: dict
+    
+class ValidationException(BaseAPIException):  # 422
+class BusinessException(BaseAPIException):     # 409
+class NotFoundException(BaseAPIException):     # 404
+class SystemException(BaseAPIException):       # 500
+```
+
+**Global Handler:**
+```python
+# app/main.py
+@app.exception_handler(BaseAPIException)
+async def api_exception_handler(request, exc):
+    return ErrorResponse(
+        error=ErrorDetail(
+            code=exc.error_code,
+            message=exc.message,
+            details=exc.details
+        )
+    )
+```
+
+### Consequences
+
+**Positive:**
+- ✅ **Consistent responses:** All errors follow `ErrorResponse` schema
+- ✅ **Machine-readable:** Error codes enable programmatic error handling
+- ✅ **Type safety:** Custom exceptions are strongly typed
+- ✅ **Testability:** Easy to test specific exception types
+- ✅ **Centralized logging:** All errors logged with context
+- ✅ **OpenAPI documentation:** Error schemas automatically documented
+
+**Negative:**
+- ❌ **More code:** Requires exception classes and handlers (~150 LOC)
+- ❌ **Learning curve:** Team must know which exceptions to use
+
+**Implementation Details:**
+
+Domain-specific exceptions:
+- `RestaurantNotFoundException` → 404 with `restaurant_id` in details
+- `InsufficientBalanceException` → 409 with balance details
+- `InvalidEventTypeException` → 422 with `event_type` in details
+- `DuplicateEventException` → 409 with `idempotent=true` flag
+- `DatabaseException` → 500 with operation details
+
+**Example Response:**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RESTAURANT_NOT_FOUND",
+    "message": "Restaurant not found: res_123",
+    "details": {
+      "restaurant_id": "res_123"
+    }
+  },
+  "meta": {
+    "timestamp": "2025-12-31T10:30:00Z",
+    "path": "/v1/restaurants/res_123/balance"
+  }
+}
+```
+
+**Rationale:**
+- Consistent error responses improve client experience
+- Machine-readable error codes enable programmatic handling
+- Centralized handlers ensure logging consistency
+- Type-safe exceptions prevent typos in error codes
 
 ---
 
