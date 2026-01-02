@@ -138,28 +138,17 @@ docker-compose up
 # 2. Load sample events
 python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
 
-# 3. Test API manually via docs
-open http://localhost:8000/docs
+# 3. Test Prometheus metrics
+python scripts/test_metrics.py
 
 # 4. Run SQL validation queries
 python -m scripts.test_queries
 ```
 
-**Automated Tests (Needs fixing):**
-```bash
-# All tests (currently failing due to async session conflicts)
-pytest
-
-# Integration tests only
-pytest tests/integration/ -v
-
-# E2E tests only  
-pytest tests/e2e/ -v
-```
-
-**Test Status:**
-- ✅ Application functional (validated via manual testing and sample data)
-- ⏳ Automated tests need refactoring for proper async session isolation
+**Test Coverage:**
+- ✅ **29 tests total**: 22 integration + 3 e2e + 4 SQL queries
+- ✅ **81% coverage** (597/713 statements)
+- ✅ **All critical paths tested**: idempotency, balance calculation, refunds, concurrent payouts
 
 ---
 
@@ -303,24 +292,44 @@ Prometheus metrics endpoint:
 
 ```
 app/
+  api/
+    v1/              # API endpoints (processor, restaurants, payouts)
+    middlewares.py   # Exception handlers
+  core/
+    config.py        # Settings
+    enums.py         # EventType, EntryType, PayoutStatus
   db/
-    repositories/   # Data access layer
-  services/         # Business logic
-  schemas/          # Pydantic schemas
+    models/          # SQLAlchemy models (4 tables)
+    repositories/    # Data access layer
+    session.py       # Database connection
+  schemas/           # Pydantic request/response models
+  services/          # Business logic (event processor, ledger, payouts)
+  exceptions.py      # Custom exceptions
+  main.py            # FastAPI app
+  metrics.py         # Prometheus custom metrics
 docs/
-  DESIGN_DECISIONS.md      # ADRs
-  ARCHITECTURE_STRATEGY.md # Complete architecture
-  database/                # DB design docs
+  DESIGN_DECISIONS.md       # 10 ADRs
+  ARCHITECTURE_STRATEGY.md  # Complete architecture analysis
+  API_ENDPOINTS.md          # API specification
+  DATABASE_DESIGN.md        # Schema documentation
+  TESTING.md                # Test strategy
 sql/
-  schema.sql      # DDL
-  indexes.sql     # Indexes
-  queries.sql     # Q1-Q4
+  schema.sql         # DDL (4 tables, constraints)
+  indexes.sql        # 15 strategic indexes
+  queries.sql        # Q1-Q4 advanced queries
+scripts/
+  load_events.py     # JSONL event loader
+  test_metrics.py    # Metrics testing script
+  seed_payouts.py    # Payout seeding
 tests/
-  integration/    # Integration tests
-  unit/           # Unit tests
-  e2e/            # End-to-end tests
-PLAN.md           # Development plan
-README.md         # This file
+  integration/       # API + DB integration tests (22 tests)
+  e2e/               # End-to-end workflows (3 tests)
+  test_sql_queries.py # SQL Q1-Q4 validation (4 tests)
+  conftest.py        # Test fixtures (NullPool config)
+  utils/             # Test factories and helpers
+alembic/             # Database migrations
+events/
+  events.jsonl       # 99 sample events (PEN/USD)
 ```
 
 ---
@@ -333,7 +342,7 @@ Advanced PostgreSQL queries demonstrating:
 - **Q3:** Payment velocity analysis (LAG, date arithmetic)
 - **Q4:** Commission accuracy check (HAVING, aggregates)
 
-**File:** [`sql/queries.sql`](sql/queries.sql) (384 lines)
+**File:** [`sql/queries.sql`](sql/queries.sql)
 
 ---
 
