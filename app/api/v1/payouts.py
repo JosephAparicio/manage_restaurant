@@ -37,11 +37,6 @@ async def process_batch_payouts(payout_data: PayoutCreate) -> None:
 async def run_payouts(
     payout_data: PayoutCreate, background_tasks: BackgroundTasks
 ) -> dict:
-    """
-    Iniciar proceso batch asíncrono para generar payouts.
-
-    Retorna inmediatamente. El proceso se ejecuta en segundo plano.
-    """
     logger.info(f"Payout batch initiated for restaurant {payout_data.restaurant_id}")
     background_tasks.add_task(process_batch_payouts, payout_data)
 

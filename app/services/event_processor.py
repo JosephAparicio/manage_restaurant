@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import EventType
 from app.db.models import ProcessorEvent
-from app.db.repositories import EventRepository, RestaurantRepository
+from app.db.repositories import EventRepository, PayoutRepository, RestaurantRepository
 from app.metrics import events_total
 from app.schemas.events import ProcessorEventCreate
+from app.core.enums import PayoutStatus
 from app.services.ledger_service import LedgerService
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,6 @@ class EventProcessor:
         return event, is_new
 
     async def _process_payout_paid(self, event: ProcessorEvent) -> None:
-        from app.db.repositories import PayoutRepository
 
         payout_repo = PayoutRepository(self.session)
         payout_id = event.metadata_.get("payout_id") if event.metadata_ else None
@@ -83,8 +83,6 @@ class EventProcessor:
                 f"payout_paid event {event.event_id} references non-existent payout {payout_id}"
             )
             return
-
-        from app.core.enums import PayoutStatus
 
         await payout_repo.update_status(payout, PayoutStatus.PAID)
         logger.info(f"Payout {payout_id} marked as paid from event {event.event_id}")

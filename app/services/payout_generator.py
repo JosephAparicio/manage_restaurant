@@ -21,7 +21,7 @@ class PayoutGenerator:
         self.ledger_service = LedgerService(session)
 
     async def generate_payout(self, payout_data: PayoutCreate) -> int:
-        """Generate payout with row-level locking. Must be called within transaction context."""
+        """Must be called within transaction context (uses SELECT FOR UPDATE)."""
         restaurant_id = payout_data.restaurant_id
         currency = payout_data.currency
 

@@ -24,22 +24,6 @@ class EventRepository:
         fee_cents: int,
         metadata_: Optional[dict] = None,
     ) -> tuple[ProcessorEvent, bool]:
-        """Create a new event or return existing one if duplicate.
-
-        Args:
-            event_id: Unique identifier for the event.
-            event_type: Type of event (charge_succeeded, refund_succeeded, payout_paid).
-            occurred_at: When the event occurred (timezone-aware).
-            restaurant_id: Restaurant identifier.
-            currency: Currency code (e.g., 'usd').
-            amount_cents: Amount in cents.
-            fee_cents: Fee amount in cents.
-            metadata_: Optional metadata dictionary.
-
-        Returns:
-            Tuple of (ProcessorEvent instance, is_new flag).
-            is_new=True if event was created, False if already existed.
-        """
         stmt = select(ProcessorEvent).where(ProcessorEvent.event_id == event_id)
         result = await self.session.execute(stmt)
         existing_event = result.scalar_one_or_none()
