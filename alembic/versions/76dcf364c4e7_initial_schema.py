@@ -1,15 +1,15 @@
 """initial schema
 
-Revision ID: 798ced0f1c94
+Revision ID: 76dcf364c4e7
 Revises: 
-Create Date: 2026-01-01 22:38:03.865716
+Create Date: 2026-01-01 23:58:05.023053
 
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision = '798ced0f1c94'
+revision = '76dcf364c4e7'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -20,8 +20,8 @@ def upgrade() -> None:
     op.create_table('restaurants',
     sa.Column('id', sa.String(length=50), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
     sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.CheckConstraint("id LIKE 'res_%'", name='restaurant_id_format'),
@@ -33,8 +33,8 @@ def upgrade() -> None:
     sa.Column('amount_cents', sa.BigInteger(), nullable=False),
     sa.Column('currency', sa.String(length=3), server_default='PEN', nullable=False),
     sa.Column('status', sa.String(length=50), server_default='created', nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('paid_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('paid_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('failure_reason', sa.Text(), nullable=True),
     sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.CheckConstraint("(status = 'paid' AND paid_at IS NOT NULL) OR (status != 'paid' AND paid_at IS NULL)", name='paid_at_consistency'),
@@ -48,12 +48,12 @@ def upgrade() -> None:
     sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
     sa.Column('event_id', sa.String(length=50), nullable=False),
     sa.Column('event_type', sa.String(length=50), nullable=False),
-    sa.Column('occurred_at', sa.DateTime(), nullable=False),
+    sa.Column('occurred_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('restaurant_id', sa.String(length=50), nullable=False),
     sa.Column('currency', sa.String(length=3), server_default='PEN', nullable=False),
     sa.Column('amount_cents', sa.BigInteger(), nullable=False),
     sa.Column('fee_cents', sa.BigInteger(), server_default='0', nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.CheckConstraint("event_type IN ('charge_succeeded', 'refund_succeeded', 'payout_paid')", name='valid_event_type'),
     sa.CheckConstraint('amount_cents >= 0', name='positive_amount'),
@@ -73,7 +73,7 @@ def upgrade() -> None:
     sa.Column('related_event_id', sa.String(length=100), nullable=True),
     sa.Column('related_payout_id', sa.BigInteger(), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('available_at', sa.DateTime(), nullable=True),
+    sa.Column('available_at', sa.DateTime(timezone=True), nullable=True),
     sa.CheckConstraint("entry_type IN ('sale', 'commission', 'refund', 'payout_reserve')", name='valid_entry_type'),
     sa.ForeignKeyConstraint(['related_event_id'], ['processor_events.event_id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['related_payout_id'], ['payouts.id'], ondelete='RESTRICT'),

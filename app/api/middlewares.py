@@ -12,9 +12,7 @@ from app.schemas.common import ErrorDetail, ErrorResponse
 logger = logging.getLogger(__name__)
 
 
-async def api_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def api_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Global handler for custom API exceptions.
 
@@ -49,9 +47,7 @@ async def api_exception_handler(
     )
 
 
-async def integrity_error_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def integrity_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Handle database integrity constraint violations.
 
@@ -95,9 +91,7 @@ async def integrity_error_handler(
     )
 
 
-async def unhandled_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Catch-all handler for unexpected errors.
 

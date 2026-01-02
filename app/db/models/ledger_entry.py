@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    DateTime,
     ForeignKey,
     Index,
     String,
@@ -42,7 +43,9 @@ class LedgerEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
     )
-    available_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    available_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         CheckConstraint(

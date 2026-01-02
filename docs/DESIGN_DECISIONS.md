@@ -283,32 +283,56 @@ amount_decimal = amount_cents / 100.0  # 120.45
 
 ### Decision
 
-**Use PostgreSQL row-level locking (`SELECT ... FOR UPDATE`):**
+**Use PostgreSQL row-level locking (`SELECT ... FOR UPDATE`) with subquery:**
 
 ```sql
--- Lock ledger rows during balance calculation
-SELECT 
-    restaurant_id,
-    SUM(amount_cents) as available_balance
-FROM ledger_entries
-WHERE restaurant_id = ?
-  AND currency = ?
-  AND (available_at IS NULL OR available_at <= NOW())
-FOR UPDATE;  -- ← Locks these rows until transaction ends
+-- Lock ledger rows first (in subquery), then calculate sum
+SELECT COALESCE(SUM(locked_entries.amount_cents), 0)
+FROM (
+    SELECT amount_cents
+    FROM ledger_entries
+    WHERE restaurant_id = ?
+      AND currency = ?
+      AND (available_at IS NULL OR available_at <= NOW())
+    FOR UPDATE  -- ← Locks individual rows (PostgreSQL allows this)
+) AS locked_entries;  -- ← Sum operates on already-locked result
+```
+
+**Why subquery?** PostgreSQL does NOT allow `FOR UPDATE` with aggregate functions directly:
+```sql
+-- ❌ INVALID: PostgreSQL rejects this
+SELECT SUM(amount_cents) FROM ledger_entries WHERE ... FOR UPDATE;
+-- Error: FOR UPDATE is not allowed with aggregate functions
+
+-- ✅ VALID: Lock rows in subquery, aggregate outside
+SELECT SUM(amount_cents) FROM (
+    SELECT amount_cents FROM ledger_entries WHERE ... FOR UPDATE
+) AS locked;
 ```
 
 **SQLAlchemy implementation:**
 ```python
 async with session.begin():
-    result = await session.execute(
-        select(func.sum(LedgerEntry.amount_cents))
+    # Subquery: Lock all available entries for this restaurant
+    locked_entries = (
+        select(LedgerEntry.amount_cents)
         .where(LedgerEntry.restaurant_id == restaurant_id)
-        .with_for_update()  # ← Row lock
+        .where(LedgerEntry.currency == currency)
+        .where(
+            (LedgerEntry.available_at.is_(None))
+            | (LedgerEntry.available_at <= func.now())
+        )
+        .with_for_update()  # ← Locks rows in subquery
+        .subquery()
     )
+    
+    # Main query: Calculate sum from locked rows
+    stmt = select(func.coalesce(func.sum(locked_entries.c.amount_cents), 0))
+    result = await session.execute(stmt)
     balance = result.scalar() or 0
     
     if balance >= min_amount:
-        # Create payout (still locked)
+        # Create payout (rows still locked)
         payout = await create_payout(...)
         entry = await create_ledger_entry(...)
     

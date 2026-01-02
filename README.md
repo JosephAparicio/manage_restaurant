@@ -77,16 +77,34 @@ cp .env.example .env
 
 ```bash
 # Using Docker
-docker-compose up -d db
-
-# Or manually
-createdb restaurant_ledger
+docker-compose up --build
 
 # Run migrations
-alembic upgrade head
+docker-compose exec app alembic upgrade head
+```
 
-# Load test data (optional)
-python scripts/load_events.py events/events.jsonl
+### Load Sample Data
+
+The repository includes 103 sample events for testing:
+- 74 events in PEN (nuevo sol)
+- 26 events in USD (dollars)
+- Mix of charge_succeeded, refund_succeeded, payout_paid
+
+```bash
+# Load events from JSONL file (required by PDF specification)
+python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
+
+# Expected output: 103 events processed
+```
+
+**Optional: Additional data population**
+
+```bash
+# Generate payouts for restaurants with available balance
+python -m scripts.seed_payouts
+
+# Run SQL validation queries (Q1-Q4 from deliverables)
+python -m scripts.test_queries
 ```
 
 ### Run Application

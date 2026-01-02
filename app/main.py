@@ -31,6 +31,7 @@ register_exception_handlers(app)
 
 app.include_router(api_router, prefix="/v1")
 
+
 @app.get("/health")
 async def health_check() -> dict:
     return {"status": "healthy"}

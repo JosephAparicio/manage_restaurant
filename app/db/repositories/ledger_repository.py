@@ -55,17 +55,25 @@ class LedgerRepository:
     async def get_available_balance_with_lock(
         self, restaurant_id: str, currency: str = "PEN"
     ) -> int:
-        """Get available balance with row-level locking to prevent race conditions in payout generation."""
-        stmt = (
-            select(func.coalesce(func.sum(LedgerEntry.amount_cents), 0))
+        """Get available balance with row-level locking to prevent race conditions in payout generation.
+        
+        Uses subquery pattern: PostgreSQL does NOT allow FOR UPDATE with aggregate functions directly.
+        Solution: Lock rows in subquery, then calculate SUM on already-locked result.
+        """
+        locked_entries = (
+            select(LedgerEntry.amount_cents)
             .where(LedgerEntry.restaurant_id == restaurant_id)
             .where(LedgerEntry.currency == currency)
             .where(
                 (LedgerEntry.available_at.is_(None))
                 | (LedgerEntry.available_at <= func.now())
             )
-            .with_for_update()
+            .with_for_update()  # Locks individual rows in subquery
+            .subquery()
         )
+        
+        # Main query: Calculate sum from locked rows
+        stmt = select(func.coalesce(func.sum(locked_entries.c.amount_cents), 0))
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
@@ -119,7 +127,10 @@ class LedgerRepository:
             func.coalesce(
                 func.sum(
                     func.case(
-                        (LedgerEntry.available_at > func.now(), LedgerEntry.amount_cents),
+                        (
+                            LedgerEntry.available_at > func.now(),
+                            LedgerEntry.amount_cents,
+                        ),
                         else_=0,
                     )
                 ),

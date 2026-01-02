@@ -24,26 +24,42 @@ class EventRepository:
         fee_cents: int,
         metadata_: Optional[dict] = None,
     ) -> tuple[ProcessorEvent, bool]:
-        try:
-            event = ProcessorEvent(
-                event_id=event_id,
-                event_type=event_type,
-                occurred_at=occurred_at,
-                restaurant_id=restaurant_id,
-                currency=currency,
-                amount_cents=amount_cents,
-                fee_cents=fee_cents,
-                metadata_=metadata_,
-            )
-            self.session.add(event)
-            await self.session.flush()
-            return event, True
-        except IntegrityError:
-            await self.session.rollback()
-            stmt = select(ProcessorEvent).where(ProcessorEvent.event_id == event_id)
-            result = await self.session.execute(stmt)
-            existing_event = result.scalar_one()
+        """Create a new event or return existing one if duplicate.
+
+        Args:
+            event_id: Unique identifier for the event.
+            event_type: Type of event (charge_succeeded, refund_succeeded, payout_paid).
+            occurred_at: When the event occurred (timezone-aware).
+            restaurant_id: Restaurant identifier.
+            currency: Currency code (e.g., 'usd').
+            amount_cents: Amount in cents.
+            fee_cents: Fee amount in cents.
+            metadata_: Optional metadata dictionary.
+
+        Returns:
+            Tuple of (ProcessorEvent instance, is_new flag).
+            is_new=True if event was created, False if already existed.
+        """
+        stmt = select(ProcessorEvent).where(ProcessorEvent.event_id == event_id)
+        result = await self.session.execute(stmt)
+        existing_event = result.scalar_one_or_none()
+
+        if existing_event:
             return existing_event, False
+
+        event = ProcessorEvent(
+            event_id=event_id,
+            event_type=event_type,
+            occurred_at=occurred_at,
+            restaurant_id=restaurant_id,
+            currency=currency,
+            amount_cents=amount_cents,
+            fee_cents=fee_cents,
+            metadata_=metadata_,
+        )
+        self.session.add(event)
+        await self.session.flush()
+        return event, True
 
     async def get_by_event_id(self, event_id: str) -> Optional[ProcessorEvent]:
         stmt = select(ProcessorEvent).where(ProcessorEvent.event_id == event_id)

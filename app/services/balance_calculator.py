@@ -11,8 +11,8 @@ class BalanceCalculator:
     async def get_balance(
         self, restaurant_id: str, currency: str = "PEN"
     ) -> RestaurantBalance:
-        available, pending, last_event_at = (
-            await self.ledger_repo.get_balance_summary(restaurant_id, currency)
+        available, pending, last_event_at = await self.ledger_repo.get_balance_summary(
+            restaurant_id, currency
         )
 
         return RestaurantBalance(
