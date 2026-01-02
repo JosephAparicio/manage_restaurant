@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import EntryType
@@ -113,7 +113,7 @@ class LedgerRepository:
         stmt = select(
             func.coalesce(
                 func.sum(
-                    func.case(
+                    case(
                         (
                             (LedgerEntry.available_at.is_(None))
                             | (LedgerEntry.available_at <= func.now()),
@@ -126,7 +126,7 @@ class LedgerRepository:
             ).label("available"),
             func.coalesce(
                 func.sum(
-                    func.case(
+                    case(
                         (
                             LedgerEntry.available_at > func.now(),
                             LedgerEntry.amount_cents,
@@ -137,7 +137,7 @@ class LedgerRepository:
                 0,
             ).label("pending"),
             func.max(
-                func.case(
+                case(
                     (LedgerEntry.related_event_id.isnot(None), LedgerEntry.created_at),
                     else_=None,
                 )

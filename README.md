@@ -124,18 +124,41 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ## How to Run Tests
 
 ```bash
-# All tests
+docker exec -e PGPASSWORD=restaurant_pass_dev restaurant_ledger_db psql -U restaurant_user -d restaurant_ledger -c "TRUNCATE TABLE ledger_entries, processor_events, payouts, restaurants RESTART IDENTITY CASCADE;"; docker exec restaurant_ledger_api python -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+```
+
+Open coverage report: `htmlcov/index.html`
+
+**Manual Testing (Alternative):**
+```bash
+# 1. Start application
+docker-compose up
+
+# 2. Load sample events
+python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
+
+# 3. Test API manually via docs
+open http://localhost:8000/docs
+
+# 4. Run SQL validation queries
+python -m scripts.test_queries
+```
+
+**Automated Tests (Needs fixing):**
+```bash
+# All tests (currently failing due to async session conflicts)
 pytest
 
 # Integration tests only
 pytest tests/integration/ -v
 
-# With coverage
-pytest --cov=app --cov-report=html
-
-# Specific test
-pytest tests/integration/test_idempotency.py -v
+# E2E tests only  
+pytest tests/e2e/ -v
 ```
+
+**Test Status:**
+- ✅ Application functional (validated via manual testing and sample data)
+- ⏳ Automated tests need refactoring for proper async session isolation
 
 ---
 

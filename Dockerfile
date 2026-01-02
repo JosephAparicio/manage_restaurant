@@ -33,6 +33,8 @@ RUN pip install --no-cache /wheels/* \
 # Copy application code
 COPY ./app ./app
 COPY ./alembic ./alembic
+COPY ./tests ./tests
+COPY ./pytest.ini .
 COPY ./alembic.ini .
 COPY ./entrypoint.sh .
 

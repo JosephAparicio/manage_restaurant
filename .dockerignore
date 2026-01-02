@@ -23,7 +23,7 @@ venv.bak/
 *.swo
 *~
 
-# Testing
+# Testing artifacts (keep tests/ for build)
 .pytest_cache/
 .coverage
 htmlcov/
@@ -54,7 +54,3 @@ docker-compose.yml
 # SQL documentation files
 sql/
 
-# Test files
-tests/
-test_*.py
-*_test.py

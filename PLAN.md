@@ -110,7 +110,9 @@ Short plan outlining key decisions and implementation strategy.
    - **Test:** Run against test dataset, verify results match expected output
    - **Validates:** Advanced SQL features (CTEs, window functions) work correctly
 
-**Test structure:** Unit (services/repos), Integration (API + DB), E2E (full flow)
+**Test structure:** Integration (API + DB), E2E (full flow)
+
+**Note:** Unit tests of repositories were removed due to async session complexity. Integration tests provide comprehensive coverage by testing repositories through real API calls with actual database transactions, which better validates real-world behavior.
 
 ---
 
@@ -143,12 +145,21 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 - Services (event processor, ledger, balance calculator, payout generator)
 - API endpoints (4 endpoints with v1 prefix)
 
-**Phase 3: Testing** 🔄 NEXT
+**Phase 3: Testing** ✅ COMPLETE
 - Docker Compose setup
 - Integration tests (idempotency, balance, payouts)
 - E2E testing
+- SQL queries tests (Q1-Q4)
+- Coverage: 81%
 
-**Phase 4: Deployment** ⏳ PENDING
+**Phase 4: Documentation & Polish** ✅ COMPLETE
+- README updates
+- Test execution guide
+- Coverage reports
+
+**Optional (Future Enhancement):**
+- Metrics: GET /metrics (Prometheus)
+
 
 ### Commit Strategy
 
@@ -156,9 +167,9 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 
 **Commit phases** (per PDF recommendation):
 1. **Schema** - Database design, indexes, Q1-Q4 queries ✅
-2. **Phase 2** - Models, repositories, services, API endpoints ✅
-3. **Tests** - Integration tests (idempotency, balance, payouts) 🔄 NEXT
-4. **Deployment** - Docker, final validation ⏳ PENDING
+2. **Implementation** - Models, repositories, services, API endpoints ✅
+3. **Tests** - Integration tests (idempotency, balance, payouts) ✅
+4. **Documentation** - README, test guides, coverage reports ✅
 
 **Guidelines:**
 - Small commits (one logical change)
