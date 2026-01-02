@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.repositories import LedgerRepository, PayoutRepository
 from app.exceptions import InsufficientBalanceException, PendingPayoutException
+from app.metrics import balance_total, payouts_total
 from app.schemas.payouts import PayoutCreate
 from app.services.ledger_service import LedgerService
 
@@ -60,6 +61,12 @@ class PayoutGenerator:
             amount_cents=available_balance,
             currency=currency,
         )
+
+        payouts_total.labels(status="pending").inc()
+        new_balance = await self.ledger_repo.get_available_balance(
+            restaurant_id, currency
+        )
+        balance_total.set(new_balance)
 
         logger.info(
             f"Payout {payout.id} created successfully for restaurant {restaurant_id}: {available_balance} cents"

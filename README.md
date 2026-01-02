@@ -43,6 +43,7 @@ Microservice that processes payment processor webhooks, maintains an immutable l
 - **SQLAlchemy 2.0** (async ORM)
 - **Alembic** for migrations
 - **pytest** for testing
+- **Prometheus** for metrics
 
 ---
 
@@ -188,6 +189,17 @@ Generate payout (async background task)
 ### GET /v1/health
 Health check
 
+### GET /metrics
+Prometheus metrics endpoint:
+
+**Business Metrics:**
+- `restaurant_events_total{event_type}` - Events by type
+- `restaurant_ledger_entries_total{entry_type}` - Ledger entries by type
+- `restaurant_balance_total` - Current total balance (PEN cents)
+- `restaurant_payouts_total{status}` - Payouts by status
+
+**HTTP Metrics:** Auto-instrumented (requests, latency, status codes)
+
 ---
 
 ## Database Schema
@@ -245,13 +257,16 @@ Health check
 
 ## AI Tools Usage
 
-This project is being developed with AI assistance as disclosed per challenge requirements.
+**Tool:** GitHub Copilot with Claude Sonnet 4.5
 
-**Tool:** Claude Sonnet 4.5 (via GitHub Copilot Agent)
+**Development Approach:**
+- AI was used as a coding assistant to accelerate syntax and boilerplate generation
+- All architectural decisions, design patterns, and business logic were developer-guided
+- Developer maintained control over: schema design, idempotency strategy, testing priorities, and all technical trade-offs
+- All AI suggestions were reviewed, validated, and corrected by the developer
+- The developer ensured code quality, adherence to best practices, and requirement compliance
 
-**Current usage:** Planning and design phase - database schema, architecture decisions, documentation structure
-
-All AI suggestions are reviewed and validated. Design decisions based on production experience with financial systems.
+**Disclosure:** This project was developed with AI assistance as recommended in the challenge guidelines. The AI served as a productivity tool while the developer retained full responsibility for all technical decisions and implementation quality.
 
 ---
 

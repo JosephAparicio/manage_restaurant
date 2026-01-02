@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.enums import EventType
 from app.db.models import ProcessorEvent
 from app.db.repositories import EventRepository, RestaurantRepository
+from app.metrics import events_total
 from app.schemas.events import ProcessorEventCreate
 from app.services.ledger_service import LedgerService
 
@@ -40,6 +41,7 @@ class EventProcessor:
             logger.info(
                 f"Processing new event: {event.event_id} ({event.event_type.value}) for restaurant {event.restaurant_id}"
             )
+            events_total.labels(event_type=event.event_type.value).inc()
             if event.event_type == EventType.CHARGE_SUCCEEDED:
                 await self.ledger_service.create_sale_entries(
                     restaurant_id=event.restaurant_id,
@@ -85,6 +87,4 @@ class EventProcessor:
         from app.core.enums import PayoutStatus
 
         await payout_repo.update_status(payout, PayoutStatus.PAID)
-        logger.info(
-            f"Payout {payout_id} marked as paid from event {event.event_id}"
-        )
+        logger.info(f"Payout {payout_id} marked as paid from event {event.event_id}")

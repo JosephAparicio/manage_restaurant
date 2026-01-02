@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import PayoutStatus
 from app.db.models import Payout
+from app.metrics import payouts_total
 
 
 class PayoutRepository:
@@ -64,6 +65,9 @@ class PayoutRepository:
         payout.status = status
         if status == PayoutStatus.PAID:
             payout.paid_at = func.now()
+            payouts_total.labels(status="paid").inc()
+        elif status == PayoutStatus.FAILED:
+            payouts_total.labels(status="failed").inc()
         if failure_reason:
             payout.failure_reason = failure_reason
         await self.session.flush()

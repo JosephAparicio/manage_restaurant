@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import EntryType
 from app.db.models import LedgerEntry
+from app.metrics import ledger_entries_total
 
 
 class LedgerRepository:
@@ -35,6 +36,7 @@ class LedgerRepository:
         )
         self.session.add(entry)
         await self.session.flush()
+        ledger_entries_total.labels(entry_type=entry_type.value).inc()
         return entry
 
     async def get_available_balance(
@@ -56,7 +58,7 @@ class LedgerRepository:
         self, restaurant_id: str, currency: str = "PEN"
     ) -> int:
         """Get available balance with row-level locking to prevent race conditions in payout generation.
-        
+
         Uses subquery pattern: PostgreSQL does NOT allow FOR UPDATE with aggregate functions directly.
         Solution: Lock rows in subquery, then calculate SUM on already-locked result.
         """
@@ -71,7 +73,7 @@ class LedgerRepository:
             .with_for_update()  # Locks individual rows in subquery
             .subquery()
         )
-        
+
         # Main query: Calculate sum from locked rows
         stmt = select(func.coalesce(func.sum(locked_entries.c.amount_cents), 0))
         result = await self.session.execute(stmt)

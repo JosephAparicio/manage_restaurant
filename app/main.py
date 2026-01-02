@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.middlewares import register_exception_handlers
 from app.api.v1 import api_router
@@ -28,6 +29,8 @@ app.add_middleware(
 )
 
 register_exception_handlers(app)
+
+Instrumentator().instrument(app).expose(app)
 
 app.include_router(api_router, prefix="/v1")
 

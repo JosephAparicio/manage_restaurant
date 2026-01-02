@@ -29,7 +29,9 @@ async def seed_payouts():
                     print(f"Payout initiated for {restaurant_id}")
                 else:
                     error = response.text[:200]
-                    print(f"Failed for {restaurant_id} - {response.status_code}: {error}")
+                    print(
+                        f"Failed for {restaurant_id} - {response.status_code}: {error}"
+                    )
             except Exception as e:
                 print(f"Error for {restaurant_id}: {e}")
 

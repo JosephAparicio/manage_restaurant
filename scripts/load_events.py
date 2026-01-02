@@ -62,7 +62,9 @@ class EventLoader:
                         )
                     elif response.status_code == 200:
                         stats["duplicate"] += 1
-                        print(f"[{idx}/{len(events)}] DUPLICATE: {event_id} ({event_type})")
+                        print(
+                            f"[{idx}/{len(events)}] DUPLICATE: {event_id} ({event_type})"
+                        )
                     else:
                         stats["failed"] += 1
                         error_detail = response.text[:100]
