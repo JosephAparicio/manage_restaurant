@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.enums import EventType
 from app.db.models import ProcessorEvent
 from app.db.repositories import EventRepository, PayoutRepository, RestaurantRepository
-from app.metrics import events_total
+from app.metrics import balance_total, events_total
 from app.schemas.events import ProcessorEventCreate
 from app.core.enums import PayoutStatus
 from app.services.ledger_service import LedgerService
@@ -19,6 +19,10 @@ class EventProcessor:
         self.event_repo = EventRepository(session)
         self.restaurant_repo = RestaurantRepository(session)
         self.ledger_service = LedgerService(session)
+
+    def _event_type_value(self, event: ProcessorEvent) -> str:
+        event_type = event.event_type
+        return event_type.value if hasattr(event_type, "value") else str(event_type)
 
     async def process_event(
         self, event_data: ProcessorEventCreate
@@ -38,11 +42,21 @@ class EventProcessor:
             metadata_=event_data.metadata,
         )
 
+        event_type_value = self._event_type_value(event)
+
         if is_new:
             logger.info(
-                f"Processing new event: {event.event_id} ({event.event_type.value}) for restaurant {event.restaurant_id}"
+                "Processing new event event_id=%s event_type=%s restaurant_id=%s",
+                event.event_id,
+                event_type_value,
+                event.restaurant_id,
+                extra={
+                    "event_id": event.event_id,
+                    "restaurant_id": event.restaurant_id,
+                    "event_type": event_type_value,
+                },
             )
-            events_total.labels(event_type=event.event_type.value).inc()
+            events_total.labels(event_type=event_type_value).inc()
             if event.event_type == EventType.CHARGE_SUCCEEDED:
                 await self.ledger_service.create_sale_entries(
                     restaurant_id=event.restaurant_id,
@@ -61,8 +75,22 @@ class EventProcessor:
                 )
             elif event.event_type == EventType.PAYOUT_PAID:
                 await self._process_payout_paid(event)
+
+            total_balance = await self.ledger_service.ledger_repo.get_total_balance(
+                currency=event.currency
+            )
+            balance_total.set(total_balance)
         else:
-            logger.info(f"Idempotent hit: event {event.event_id} already processed")
+            logger.info(
+                "Idempotent event received event_id=%s restaurant_id=%s",
+                event.event_id,
+                event.restaurant_id,
+                extra={
+                    "event_id": event.event_id,
+                    "restaurant_id": event.restaurant_id,
+                    "event_type": event_type_value,
+                },
+            )
 
         return event, is_new
 
@@ -73,16 +101,43 @@ class EventProcessor:
 
         if not payout_id:
             logger.warning(
-                f"payout_paid event {event.event_id} missing payout_id in metadata"
+                "payout_paid missing payout_id in metadata event_id=%s restaurant_id=%s",
+                event.event_id,
+                event.restaurant_id,
+                extra={
+                    "event_id": event.event_id,
+                    "restaurant_id": event.restaurant_id,
+                    "event_type": self._event_type_value(event),
+                },
             )
             return
 
         payout = await payout_repo.get_by_id(payout_id)
         if not payout:
             logger.warning(
-                f"payout_paid event {event.event_id} references non-existent payout {payout_id}"
+                "payout_paid references non-existent payout event_id=%s restaurant_id=%s payout_id=%s",
+                event.event_id,
+                event.restaurant_id,
+                payout_id,
+                extra={
+                    "event_id": event.event_id,
+                    "restaurant_id": event.restaurant_id,
+                    "event_type": self._event_type_value(event),
+                    "payout_id": payout_id,
+                },
             )
             return
 
         await payout_repo.update_status(payout, PayoutStatus.PAID)
-        logger.info(f"Payout {payout_id} marked as paid from event {event.event_id}")
+        logger.info(
+            "Payout marked as paid payout_id=%s from event_id=%s restaurant_id=%s",
+            payout_id,
+            event.event_id,
+            event.restaurant_id,
+            extra={
+                "event_id": event.event_id,
+                "restaurant_id": event.restaurant_id,
+                "event_type": self._event_type_value(event),
+                "payout_id": payout_id,
+            },
+        )

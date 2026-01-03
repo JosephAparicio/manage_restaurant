@@ -15,6 +15,11 @@ class RestaurantRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def list_active_restaurant_ids(self) -> list[str]:
+        stmt = select(Restaurant.id).where(Restaurant.is_active.is_(True))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_or_create(
         self, restaurant_id: str, name: Optional[str] = None
     ) -> tuple[Restaurant, bool]:
@@ -29,21 +34,30 @@ class RestaurantRepository:
             name = restaurant_id
 
         restaurant = Restaurant(id=restaurant_id, name=name)
-        self.session.add(restaurant)
-
+        created = False
         try:
-            await self.session.flush()
-            logger.info(f"Created new restaurant: {restaurant_id}")
-            return restaurant, True
+            async with self.session.begin_nested():
+                self.session.add(restaurant)
+                await self.session.flush()
+                created = True
         except IntegrityError:
-            await self.session.rollback()
-            stmt = select(Restaurant).where(Restaurant.id == restaurant_id)
-            result = await self.session.execute(stmt)
-            restaurant = result.scalar_one()
             logger.info(
-                f"Restaurant {restaurant_id} already exists (race condition handled)"
+                "Restaurant already exists (race condition handled) restaurant_id=%s",
+                restaurant_id,
+                extra={"restaurant_id": restaurant_id},
             )
-            return restaurant, False
+
+        if created:
+            logger.info(
+                "Created new restaurant restaurant_id=%s",
+                restaurant_id,
+                extra={"restaurant_id": restaurant_id},
+            )
+            return restaurant, True
+
+        stmt = select(Restaurant).where(Restaurant.id == restaurant_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one(), False
 
     async def get_by_id(self, restaurant_id: str) -> Optional[Restaurant]:
         stmt = select(Restaurant).where(Restaurant.id == restaurant_id)

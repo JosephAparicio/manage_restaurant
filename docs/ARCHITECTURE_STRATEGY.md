@@ -41,7 +41,7 @@ Financial reconciliation and settlement system for restaurants requiring:
 
 **Core:**
 - Python 3.11+ with FastAPI (async only)
-- PostgreSQL 15+ with asyncpg
+- PostgreSQL 17 with asyncpg
 - SQLAlchemy 2.0 (async ORM)
 - Alembic for migrations
 
@@ -196,7 +196,7 @@ Model Layer (ORM)
 - No floating-point rounding errors
 
 **Timestamps:**
-- TIMESTAMPTZ (timezone-aware)
+- Timestamp columns use timezone-aware types (`TIMESTAMPTZ`) for persisted time fields
 - `created_at` for audit trail
 - `occurred_at` for business events
 - `available_at` for maturity window
@@ -220,7 +220,6 @@ Model Layer (ORM)
 
 **Business Rules Enforced:**
 - `CHECK (amount_cents >= 0)` - No negative gross amounts
-- `CHECK (currency ~ '^[A-Z]{3}$')` - ISO 4217 format
 - `CHECK (event_type IN (...))` - Valid event types only
 - `CHECK (status IN (...))` - Valid payout statuses only
 
@@ -238,8 +237,7 @@ Model Layer (ORM)
 **Success Response Structure:**
 ```
 {
-  "success": true,
-  "data": { ... },
+  ...response fields,
   "meta": {
     "timestamp": "ISO8601",
     "request_id": "uuid"
@@ -328,7 +326,7 @@ Model Layer (ORM)
 **Middleware Approach:**
 - Catch all `BaseAPIException` instances
 - Format error response consistently
-- Log errors with context (request_id, stack trace)
+- Log errors with context (stack trace)
 - Return appropriate HTTP status
 
 **Unhandled Exceptions:**

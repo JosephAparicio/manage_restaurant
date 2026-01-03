@@ -4,11 +4,14 @@ from typing import AsyncGenerator
 from datetime import datetime, timezone, timedelta
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import text
 from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app
-from app.db.session import engine
+from app.db.session import AsyncSessionLocal, engine
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -20,11 +23,34 @@ def configure_db_for_tests():
     yield
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session
+        await session.rollback()
+
+
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def truncate_tables_between_tests() -> AsyncGenerator[None, None]:
+    """Ensure test isolation by truncating tables.
+
+    Assumes schema is already created via Alembic migrations (Docker flow).
+    """
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            text(
+                "TRUNCATE TABLE ledger_entries, processor_events, payouts, restaurants RESTART IDENTITY CASCADE;"
+            )
+        )
+        await session.commit()
+    yield
 
 
 @pytest.fixture

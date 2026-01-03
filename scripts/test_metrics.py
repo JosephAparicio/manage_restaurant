@@ -1,5 +1,6 @@
 import asyncio
 import httpx
+from datetime import date
 
 
 async def test_metrics():
@@ -47,11 +48,15 @@ async def test_metrics():
             print(f"   Error: {response.text}")
 
         print("\n3. Creating payout...")
-        payout_data = {"restaurant_id": "res_metrics", "currency": "PEN"}
+        payout_data = {
+            "currency": "PEN",
+            "as_of": date.today().isoformat(),
+            "min_amount": 10000,
+        }
         response = await client.post(f"{api_url}/v1/payouts/run", json=payout_data)
         print(f"   Status: {response.status_code}")
-        if response.status_code == 201:
-            print(f"   Payout ID: {response.json().get('id')}")
+        if response.status_code >= 400:
+            print(f"   Error: {response.text}")
 
         print("\n4. Fetching metrics...")
         response = await client.get(f"{api_url}/metrics")
@@ -65,13 +70,9 @@ async def test_metrics():
             print("=" * 60)
 
             for line in metrics_text.split("\n"):
+                if not line or line.startswith("#"):
+                    continue
                 if line.startswith("restaurant_"):
-                    if (
-                        not line.startswith("restaurant_")
-                        or "{" in line
-                        or line.endswith("_total")
-                    ):
-                        continue
                     print(line)
 
             print("\n" + "=" * 60)

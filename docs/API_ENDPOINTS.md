@@ -53,6 +53,10 @@ Content-Type: application/json
   "restaurant_id": "res_001",
   "amount_cents": 12000,
   "fee_cents": 300,
+  "metadata": {
+    "reservation_id": "rsv_987",
+    "payment_id": "pay_456"
+  },
   "occurred_at": "2025-01-15T10:00:00Z",
   "currency": "PEN"
 }
@@ -136,7 +140,7 @@ GET /v1/restaurants/res_001/balance?currency=PEN
 - `available_cents`: Balance available for payout (matured funds)
 - `pending_cents`: Balance pending maturation (with maturity window)
 - `total_cents`: Sum of available + pending
-- `last_event_at`: Timestamp of last processed event for this restaurant (nullable)
+- `last_event_at`: Server-side timestamp when the most recent processor event was recorded/processed for this restaurant (nullable)
 
 **Balance Calculation:**
 - Calculated in real-time from `ledger_entries` table
@@ -157,8 +161,9 @@ POST /v1/payouts/run
 Content-Type: application/json
 
 {
-  "restaurant_id": "res_001",
-  "currency": "PEN"
+  "currency": "PEN",
+  "as_of": "2025-12-27",
+  "min_amount": 5000
 }
 ```
 
@@ -166,7 +171,9 @@ Content-Type: application/json
 ```json
 {
   "message": "Payout process initiated",
-  "restaurant_id": "res_001"
+  "currency": "PEN",
+  "as_of": "2025-12-27",
+  "min_amount": 5000
 }
 ```
 
@@ -176,49 +183,14 @@ Content-Type: application/json
 - ✅ Does not block the request
 
 **Business Rules:**
-- Minimum payout amount: 100.00 PEN (10,000 centavos)
-- Cannot create payout if pending payout exists
+- Eligible restaurants are evaluated by currency
+- Minimum payout amount is controlled by request `min_amount`
+- Cannot create payout if pending payout exists for the same restaurant and currency
 - Only uses available balance (matured funds)
 
-**Error Responses:**
-
-**409 Conflict - Insufficient Balance:**
-```json
-{
-  "success": false,
-  "error": {
-    "code": "PAYOUT_INSUFFICIENT_BALANCE",
-    "message": "Insufficient balance for payout",
-    "details": {
-      "restaurant_id": "res_001",
-      "available_cents": 5000,
-      "required_cents": 10000
-    }
-  },
-  "meta": {
-    "timestamp": "2025-01-15T15:00:00Z",
-    "path": "/v1/payouts/run"
-  }
-}
-```
-
-**409 Conflict - Pending Payout Exists:**
-```json
-{
-  "success": false,
-  "error": {
-    "code": "PAYOUT_ALREADY_PENDING",
-    "message": "Cannot create payout while another is pending",
-    "details": {
-      "restaurant_id": "res_001"
-    }
-  },
-  "meta": {
-    "timestamp": "2025-01-15T15:00:00Z",
-    "path": "/v1/payouts/run"
-  }
-}
-```
+**Batch Behavior:**
+- Restaurants that do not meet eligibility are skipped (no per-restaurant error response).
+- Idempotency is enforced per restaurant, currency and `as_of`.
 
 ---
 
@@ -243,6 +215,10 @@ GET /v1/payouts/123
   "status": "created",
   "created_at": "2025-01-15T15:00:00Z",
   "paid_at": null,
+  "items": [
+    {"item_type": "net_sales", "amount_cents": 11400},
+    {"item_type": "fees", "amount_cents": -600}
+  ],
   "meta": {
     "timestamp": "2025-01-15T15:05:00Z",
     "request_id": "990gc833-i69f-85h8-e150-880099884444"
@@ -365,8 +341,9 @@ curl http://localhost:8000/v1/restaurants/res_001/balance?currency=PEN
 curl -X POST http://localhost:8000/v1/payouts/run \
   -H "Content-Type: application/json" \
   -d '{
-    "restaurant_id": "res_001",
-    "currency": "PEN"
+    "currency": "PEN",
+    "as_of": "2025-12-27",
+    "min_amount": 5000
   }'
 ```
 
@@ -410,7 +387,11 @@ async def test_endpoints():
         # Generate payout
         response = await client.post(
             "/v1/payouts/run",
-            json={"restaurant_id": "res_001", "currency": "PEN"}
+            json={
+                "currency": "PEN",
+                "as_of": "2025-12-27",
+                "min_amount": 5000,
+            }
         )
         print(f"Payout: {response.json()}")
 
@@ -454,8 +435,9 @@ Balance is calculated in real-time from ledger entries:
 
 ### Timestamps
 
-All timestamps are:
-- Stored as `TIMESTAMPTZ` (timezone-aware)
+Timestamps are:
+- Generally stored as timezone-aware values (`TIMESTAMPTZ`) for events and payouts
+- Stored as timezone-aware values (`TIMESTAMPTZ`) across persisted timestamps
 - Generated server-side using PostgreSQL `func.now()`
 - Returned in ISO 8601 format with timezone
 - Example: `2025-01-15T10:00:00Z`

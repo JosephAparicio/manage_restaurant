@@ -103,7 +103,7 @@ pytest -m concurrency
 
 ## Test Coverage
 
-**Current: 81% (597 statements, 115 missing)**
+**Current: 77%**
 
 - Critical paths covered:
   - ✅ Event processing with idempotency

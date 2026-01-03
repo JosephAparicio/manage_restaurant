@@ -6,43 +6,56 @@ from app.api.dependencies import SessionDep
 from app.db.repositories import PayoutRepository
 from app.db.session import AsyncSessionLocal
 from app.exceptions import NotFoundException, SystemException
-from app.schemas.payouts import PayoutCreate, PayoutResponse
+from app.schemas.payouts import PayoutResponse, PayoutRunRequest
 from app.services.payout_generator import PayoutGenerator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def process_batch_payouts(payout_data: PayoutCreate) -> None:
+async def process_batch_payouts(payout_data: PayoutRunRequest) -> None:
     """Background task to generate payouts asynchronously within atomic transaction."""
     try:
         logger.info(
-            f"Background task started for restaurant {payout_data.restaurant_id}"
+            "Background payout batch task started for currency=%s as_of=%s min_amount=%s",
+            payout_data.currency,
+            payout_data.as_of,
+            payout_data.min_amount,
         )
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 generator = PayoutGenerator(session)
-                await generator.generate_payout(payout_data)
+                await generator.generate_payouts_batch(payout_data)
         logger.info(
-            f"Background task completed for restaurant {payout_data.restaurant_id}"
+            "Background payout batch task completed for currency=%s as_of=%s",
+            payout_data.currency,
+            payout_data.as_of,
         )
     except Exception as e:
         logger.error(
-            f"Background task failed for restaurant {payout_data.restaurant_id}: {e}",
+            "Background payout batch task failed: %s",
+            e,
             exc_info=True,
         )
 
 
 @router.post("/run", status_code=status.HTTP_202_ACCEPTED)
 async def run_payouts(
-    payout_data: PayoutCreate, background_tasks: BackgroundTasks
+    payout_data: PayoutRunRequest, background_tasks: BackgroundTasks
 ) -> dict:
-    logger.info(f"Payout batch initiated for restaurant {payout_data.restaurant_id}")
+    logger.info(
+        "Payout batch initiated for currency=%s as_of=%s min_amount=%s",
+        payout_data.currency,
+        payout_data.as_of,
+        payout_data.min_amount,
+    )
     background_tasks.add_task(process_batch_payouts, payout_data)
 
     return {
         "message": "Payout process initiated",
-        "restaurant_id": payout_data.restaurant_id,
+        "currency": payout_data.currency,
+        "as_of": payout_data.as_of.isoformat(),
+        "min_amount": payout_data.min_amount,
     }
 
 

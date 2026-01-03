@@ -31,7 +31,7 @@ Short plan outlining key decisions and implementation strategy.
 - Immutable ledger (INSERT only, no UPDATE/DELETE)
 - 15 strategic indexes for performance
 
-**Complete schema:** `sql/schema.sql` (194 lines)  
+**Complete schema:** `sql/schema.sql`   
 **Index strategy:** `sql/indexes.sql`  
 **Documentation:** `docs/DATABASE_DESIGN.md`
 
@@ -59,8 +59,8 @@ Short plan outlining key decisions and implementation strategy.
 
 - **POST /v1/processor/events** - Idempotent webhook ingestion (201 first, 200 duplicate)
 - **GET /v1/restaurants/{id}/balance** - Calculated balance from ledger
-- **POST /v1/restaurants/{id}/payouts** - Async payout with row locking
-- **GET /v1/health** - Health check
+- **POST /v1/payouts/run** - Async payout batch run (currency + as_of + min_amount)
+- **GET /health** - Health check
 
 **Complete flows:** [ARCHITECTURE_STRATEGY.md](docs/ARCHITECTURE_STRATEGY.md)
 
@@ -150,7 +150,7 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 - Integration tests (idempotency, balance, payouts)
 - E2E testing
 - SQL queries tests (Q1-Q4)
-- Coverage: 81%
+- Coverage: 77%
 
 **Phase 4: Documentation & Polish** ✅ COMPLETE
 - README updates
@@ -175,8 +175,8 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 4. **Documentation** - README, test guides, coverage reports ✅
 
 **Guidelines:**
-- Small commits (one logical change)
-- Descriptive messages (< 72 chars)
+- Small commits 
+- Descriptive messages 
 - Avoid "big bang" commit at end
 
 ---

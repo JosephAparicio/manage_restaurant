@@ -41,7 +41,7 @@ class LedgerEntry(Base):
         BigInteger, ForeignKey("payouts.id", ondelete="RESTRICT"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     available_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

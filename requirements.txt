@@ -20,6 +20,7 @@ faker==24.0.0
 
 # Observability
 prometheus-fastapi-instrumentator==7.0.0
+prometheus-client==0.20.0
 
 # Code Quality
 black==24.10.0

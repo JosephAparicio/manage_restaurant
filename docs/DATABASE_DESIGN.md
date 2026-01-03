@@ -1,7 +1,7 @@
 # DATABASE DESIGN
 ## Restaurant Ledger System - Schema & Justification
 
-**Database:** PostgreSQL 15+  
+**Database:** PostgreSQL 17  
 **Purpose:** Financial ledger system with idempotency guarantees  
 **Core Principle:** Immutable ledger - balance is always calculated, never stored
 
@@ -65,7 +65,7 @@ CREATE TABLE restaurants (
 
 **Purpose:** Master data for restaurant entities  
 **Key Design:**
-- `id` format: `res_{identifier}` (enforced by CHECK constraint)
+- `id` format: `res_...` prefix (enforced by CHECK constraint)
 - `is_active` for soft deletes (financial data never deleted)
 - `metadata` for extensibility (contact info, bank details, etc.)
 
@@ -150,21 +150,26 @@ CREATE TABLE payouts (
     restaurant_id VARCHAR(50) NOT NULL REFERENCES restaurants(id) ON DELETE RESTRICT,
     amount_cents BIGINT NOT NULL CHECK (amount_cents > 0),
     currency VARCHAR(3) NOT NULL DEFAULT 'PEN',
+    as_of DATE NOT NULL DEFAULT CURRENT_DATE,
     status VARCHAR(50) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'processing', 'paid', 'failed')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     paid_at TIMESTAMPTZ,
     failure_reason TEXT,
     metadata JSONB,
+    UNIQUE (restaurant_id, currency, as_of),
     CHECK ((status = 'paid' AND paid_at IS NOT NULL) OR (status != 'paid' AND paid_at IS NULL))
 );
 
 CREATE INDEX idx_payouts_pending ON payouts(restaurant_id, status) 
     WHERE status IN ('created', 'processing');
+
+CREATE INDEX idx_payouts_as_of ON payouts(currency, as_of);
 ```
 
 **Purpose:** Settlement records (money OUT to restaurants)  
 **Key Design:**
 - `amount_cents` always positive (money leaving the system)
+- `as_of` groups payouts by run date (supports idempotency for `/v1/payouts/run`)
 - `status` is mutable (lifecycle: created → processing → paid/failed)
 - `paid_at` CHECK constraint → ensures logical consistency
 - Partial index on pending payouts → optimize common queries
@@ -267,12 +272,17 @@ SELECT SUM(CASE WHEN type='credit' THEN amount ELSE -amount END) FROM ledger_ent
 
 ### 3.5 ON DELETE RESTRICT vs CASCADE
 
-**All foreign keys use `ON DELETE RESTRICT`**
+**All foreign keys use `ON DELETE RESTRICT`, except `payout_items.payout_id` which uses `ON DELETE CASCADE`**
 
 **Why?**
 - Financial data is immutable → deletion should NEVER happen
 - RESTRICT prevents accidental data loss
 - Forces explicit handling (must drop constraint first)
+
+**Why the `payout_items → payouts` exception?**
+- `payout_items` are derived line items whose only purpose is to explain a payout breakdown
+- A payout should not be deleted in normal operation, but if it is removed for any reason, line items must not outlive the parent payout
+- This keeps referential integrity without requiring manual cleanup of derived rows
 
 **Example:**
 ```sql
@@ -302,7 +312,7 @@ payouts (1) ──────────── (1) ledger_entries (via related
 **Key points:**
 - One event creates multiple ledger entries (sale + commission)
 - One payout creates one ledger entry (payout_reserve)
-- All foreign keys use RESTRICT (no cascading deletes)
+- Foreign keys use RESTRICT by default; derived breakdown rows (`payout_items`) use CASCADE to avoid orphan line items
 
 ---
 

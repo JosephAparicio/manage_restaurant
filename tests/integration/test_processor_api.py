@@ -15,11 +15,13 @@ class TestProcessorEventsAPI:
         client: AsyncClient,
         sample_charge_event_data: dict,
     ) -> None:
-        response = await client.post("/v1/processor/events", json=sample_charge_event_data)
-        
+        response = await client.post(
+            "/v1/processor/events", json=sample_charge_event_data
+        )
+
         assert response.status_code == 201
         data = response.json()
-        
+
         assert data["event_id"] == sample_charge_event_data["event_id"]
         assert data["event_type"] == "charge_succeeded"
         assert data["restaurant_id"] == sample_charge_event_data["restaurant_id"]
@@ -32,12 +34,16 @@ class TestProcessorEventsAPI:
         client: AsyncClient,
         sample_charge_event_data: dict,
     ) -> None:
-        response1 = await client.post("/v1/processor/events", json=sample_charge_event_data)
+        response1 = await client.post(
+            "/v1/processor/events", json=sample_charge_event_data
+        )
         assert response1.status_code == 201
-        
-        response2 = await client.post("/v1/processor/events", json=sample_charge_event_data)
+
+        response2 = await client.post(
+            "/v1/processor/events", json=sample_charge_event_data
+        )
         assert response2.status_code == 200
-        
+
         data2 = response2.json()
         assert data2["idempotent"] is True
         assert data2["event_id"] == sample_charge_event_data["event_id"]
@@ -47,11 +53,13 @@ class TestProcessorEventsAPI:
         client: AsyncClient,
         sample_refund_event_data: dict,
     ) -> None:
-        response = await client.post("/v1/processor/events", json=sample_refund_event_data)
-        
+        response = await client.post(
+            "/v1/processor/events", json=sample_refund_event_data
+        )
+
         assert response.status_code == 201
         data = response.json()
-        
+
         assert data["event_type"] == "refund_succeeded"
         assert data["amount_cents"] == 5000
         assert data["fee_cents"] == 0
@@ -61,11 +69,13 @@ class TestProcessorEventsAPI:
         client: AsyncClient,
         sample_payout_paid_event_data: dict,
     ) -> None:
-        response = await client.post("/v1/processor/events", json=sample_payout_paid_event_data)
-        
+        response = await client.post(
+            "/v1/processor/events", json=sample_payout_paid_event_data
+        )
+
         assert response.status_code == 201
         data = response.json()
-        
+
         assert data["event_type"] == "payout_paid"
         assert "metadata" in sample_payout_paid_event_data
 
@@ -80,9 +90,9 @@ class TestProcessorEventsAPI:
             "amount_cents": -100,
             "occurred_at": datetime.now(timezone.utc).isoformat(),
         }
-        
+
         response = await client.post("/v1/processor/events", json=invalid_data)
-        
+
         assert response.status_code == 422
 
     async def test_process_event_missing_fields(
@@ -93,9 +103,9 @@ class TestProcessorEventsAPI:
             "event_id": "evt_incomplete",
             "event_type": "charge_succeeded",
         }
-        
+
         response = await client.post("/v1/processor/events", json=incomplete_data)
-        
+
         assert response.status_code == 422
 
     async def test_process_event_invalid_restaurant_id(
@@ -110,9 +120,9 @@ class TestProcessorEventsAPI:
             "fee_cents": 250,
             "occurred_at": datetime.now(timezone.utc).isoformat(),
         }
-        
+
         response = await client.post("/v1/processor/events", json=invalid_data)
-        
+
         assert response.status_code == 422
 
     @pytest.mark.idempotency
@@ -130,13 +140,13 @@ class TestProcessorEventsAPI:
             "occurred_at": datetime.now(timezone.utc).isoformat(),
             "currency": "PEN",
         }
-        
+
         responses = await asyncio.gather(
             client.post("/v1/processor/events", json=event_data),
             client.post("/v1/processor/events", json=event_data),
             client.post("/v1/processor/events", json=event_data),
         )
-        
+
         status_codes = [r.status_code for r in responses]
         assert 201 in status_codes
         assert status_codes.count(201) == 1
@@ -156,7 +166,7 @@ class TestProcessorEventsAPI:
             "occurred_at": datetime.now(timezone.utc).isoformat(),
             "currency": "PEN",
         }
-        
+
         usd_event = {
             "event_id": "evt_usd",
             "event_type": "charge_succeeded",
@@ -166,10 +176,10 @@ class TestProcessorEventsAPI:
             "occurred_at": datetime.now(timezone.utc).isoformat(),
             "currency": "USD",
         }
-        
+
         response_pen = await client.post("/v1/processor/events", json=pen_event)
         response_usd = await client.post("/v1/processor/events", json=usd_event)
-        
+
         assert response_pen.status_code == 201
         assert response_usd.status_code == 201
         assert response_pen.json()["currency"] == "PEN"

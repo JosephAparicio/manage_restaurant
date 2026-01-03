@@ -39,7 +39,7 @@ Microservice that processes payment processor webhooks, maintains an immutable l
 ## Technology Stack
 
 - **Python 3.11+** with FastAPI (async)
-- **PostgreSQL 15+** with asyncpg
+- **PostgreSQL 17** with asyncpg
 - **SQLAlchemy 2.0** (async ORM)
 - **Alembic** for migrations
 - **pytest** for testing
@@ -52,14 +52,14 @@ Microservice that processes payment processor webhooks, maintains an immutable l
 ### Prerequisites
 
 - Python 3.11+
-- PostgreSQL 15+
+- PostgreSQL 17
 - Docker (optional)
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/JosephAparicio/manage_restaurant.git
 cd manage_restaurant
 
 # Create virtual environment
@@ -86,16 +86,15 @@ docker-compose exec app alembic upgrade head
 
 ### Load Sample Data
 
-The repository includes 103 sample events for testing:
-- 74 events in PEN (nuevo sol)
-- 26 events in USD (dollars)
+The repository includes 100 sample events for testing:
+- 100 events in PEN
 - Mix of charge_succeeded, refund_succeeded, payout_paid
 
 ```bash
 # Load events from JSONL file (required by PDF specification)
 python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
 
-# Expected output: 103 events processed
+# Expected output: 100 events processed
 ```
 
 **Optional: Additional data population**
@@ -125,7 +124,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ## How to Run Tests
 
 ```bash
-docker exec -e PGPASSWORD=restaurant_pass_dev restaurant_ledger_db psql -U restaurant_user -d restaurant_ledger -c "TRUNCATE TABLE ledger_entries, processor_events, payouts, restaurants RESTART IDENTITY CASCADE;"; docker exec restaurant_ledger_api python -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+docker-compose exec app alembic upgrade head
+docker-compose exec app python -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
 ```
 
 Open coverage report: `htmlcov/index.html`
@@ -147,12 +147,26 @@ python -m scripts.test_queries
 
 **Test Coverage:**
 - ✅ **29 tests total**: 22 integration + 3 e2e + 4 SQL queries
-- ✅ **81% coverage** (597/713 statements)
+- ✅ **77% coverage** (710 statements)
 - ✅ **All critical paths tested**: idempotency, balance calculation, refunds, concurrent payouts
 
 ---
 
 ## API Endpoints
+
+### Notes about the PDF vs this API
+
+The PDF uses example field names like `amount` and `fee`. This service uses explicit cent-based names to avoid ambiguity:
+
+- `amount` (PDF) → `amount_cents` (API)
+- `fee` (PDF) → `fee_cents` (API)
+- `timestamp` (PDF examples) → `occurred_at` (API)
+
+The PDF examples are treated as illustrative. This repository keeps the same data types and semantics (integer amounts in cents, no floats), while using more explicit field names.
+
+This API also includes a `meta` object in responses for traceability:
+- `meta.timestamp`: server-side response time in ISO 8601
+ - `meta.request_id`: unique identifier useful for debugging/log correlation
 
 ### POST /v1/processor/events
 Process webhook events (idempotent: 201 first time, 200 if duplicate)
@@ -163,19 +177,52 @@ Process webhook events (idempotent: 201 first time, 200 if duplicate)
   "event_id": "evt_charge_001",
   "event_type": "charge_succeeded",
   "restaurant_id": "res_001",
-  "amount": 10000,
-  "fee": 300,
-  "timestamp": "2025-12-31T10:00:00Z"
+  "amount_cents": 10000,
+  "fee_cents": 300,
+  "metadata": {
+    "reservation_id": "rsv_987",
+    "payment_id": "pay_456"
+  },
+  "occurred_at": "2025-12-31T10:00:00Z",
+  "currency": "PEN"
 }
 ```
 
 ### GET /v1/restaurants/{id}/balance
 Get calculated balance from ledger
 
-### POST /v1/restaurants/{id}/payouts
-Generate payout (async background task)
+**Response fields (implementation contract):**
+- `available_cents`: matured funds available for payout (integer cents)
+- `pending_cents`: not-yet-matured funds (integer cents)
+- `total_cents`: `available_cents + pending_cents` (integer cents)
+- `last_event_at`: server-side timestamp when the most recent processor event was recorded/processed for this restaurant (nullable)
+- `meta`: traceability metadata (see above)
 
-### GET /v1/health
+### POST /v1/payouts/run
+Run payout generation for all restaurants in a currency as of a given date (async background task)
+
+**Request fields (implementation contract):**
+- `currency`: ISO 4217 currency code (default `PEN`)
+- `as_of`: date used for payout run idempotency and reporting
+- `min_amount`: minimum eligible available balance (integer cents)
+
+This endpoint is asynchronous and returns HTTP 202 immediately.
+
+### GET /v1/payouts/{payout_id}
+
+**Response fields (implementation contract):**
+- `id`: payout identifier (integer)
+- `restaurant_id`: restaurant identifier
+- `currency`: ISO 4217 currency code
+- `amount_cents`: payout amount (integer cents)
+- `status`: `created | processing | paid | failed`
+- `created_at`, `paid_at`: timestamps
+- `items`: breakdown line items with:
+  - `item_type`: category (e.g. `net_sales`, `fees`, `refunds`)
+  - `amount_cents`: signed integer cents (credits positive, debits negative)
+- `meta`: traceability metadata (see above)
+
+### GET /health
 Health check
 
 ### GET /metrics
@@ -244,6 +291,26 @@ Prometheus metrics endpoint:
 
 ---
 
+## 5.3 Query performance (short answers)
+
+**Which indexes did you add and what query benefits from each?**
+- `idx_processor_events_event_id` (UNIQUE): idempotency for `POST /v1/processor/events`.
+- `idx_ledger_restaurant_currency`: speeds up balance aggregation for `GET /v1/restaurants/{id}/balance`.
+- `idx_ledger_available_at` (partial): speeds up maturity-window filtering (available vs pending funds).
+- `idx_payouts_pending` (partial): speeds up payout eligibility checks (avoid duplicate pending payouts).
+- `idx_payouts_as_of`: speeds up payout batch idempotency checks by `(currency, as_of)`.
+
+**What would become slow at scale without indexes?**
+- Balance reads would degrade into full scans over `ledger_entries`.
+- Idempotency checks would be slower and less reliable under concurrency without the UNIQUE index.
+- Payout eligibility and pending-payout checks would degrade as `payouts` grows.
+- Maturity-window filters would degrade as `ledger_entries` grows.
+
+**How do you prevent double-processing under concurrency (idempotency + payouts)?**
+- Events: DB UNIQUE constraint on `processor_events.event_id`.
+- Payout runs: DB UNIQUE constraint on `(restaurant_id, currency, as_of)` plus pending payout checks per `(restaurant_id, currency)`.
+
+---
 ## AI Tools Usage
 
 **Tool:** GitHub Copilot with Claude Sonnet 4.5
@@ -255,7 +322,7 @@ Prometheus metrics endpoint:
 - All AI suggestions were reviewed, validated, and corrected by the developer
 - The developer ensured code quality, adherence to best practices, and requirement compliance
 
-**Disclosure:** This project was developed with AI assistance as recommended in the challenge guidelines. The AI served as a productivity tool while the developer retained full responsibility for all technical decisions and implementation quality.
+**Disclosure:** This project was developed with AI assistance. The AI served as a productivity tool while the developer retained full responsibility for all technical decisions and implementation quality.
 
 ---
 
@@ -291,56 +358,34 @@ Prometheus metrics endpoint:
 ## Project Structure
 
 ```
-app/
-  api/
-    v1/              # API endpoints (processor, restaurants, payouts)
-    middlewares.py   # Exception handlers
-  core/
-    config.py        # Settings
-    enums.py         # EventType, EntryType, PayoutStatus
-  db/
-    models/          # SQLAlchemy models (4 tables)
-    repositories/    # Data access layer
-    session.py       # Database connection
-  schemas/           # Pydantic request/response models
-  services/          # Business logic (event processor, ledger, payouts)
-  exceptions.py      # Custom exceptions
-  main.py            # FastAPI app
-  metrics.py         # Prometheus custom metrics
-docs/
-  DESIGN_DECISIONS.md       # 10 ADRs
-  ARCHITECTURE_STRATEGY.md  # Complete architecture analysis
-  API_ENDPOINTS.md          # API specification
-  DATABASE_DESIGN.md        # Schema documentation
-  TESTING.md                # Test strategy
-sql/
-  schema.sql         # DDL (4 tables, constraints)
-  indexes.sql        # 15 strategic indexes
-  queries.sql        # Q1-Q4 advanced queries
-scripts/
-  load_events.py     # JSONL event loader
-  test_metrics.py    # Metrics testing script
-  seed_payouts.py    # Payout seeding
-tests/
-  integration/       # API + DB integration tests (22 tests)
-  e2e/               # End-to-end workflows (3 tests)
-  test_sql_queries.py # SQL Q1-Q4 validation (4 tests)
-  conftest.py        # Test fixtures (NullPool config)
-  utils/             # Test factories and helpers
+app/                 # Application package (FastAPI app, routers, services)
+  api/               # HTTP layer (routers, request/response handling)
+    v1/              # Versioned API endpoints
+  core/              # Settings and shared enums
+  db/                # Persistence layer (models, repositories, session)
+    models/          # SQLAlchemy ORM models
+    repositories/    # Database access methods
+  schemas/           # Pydantic schemas (validation + API contracts)
+  services/          # Business logic (event processing, ledger, payouts)
+docs/                # Architecture notes, API docs, DB design rationale
+sql/                 # Raw SQL deliverables (schema, indexes, queries)
+scripts/             # Local tooling (load dataset, run queries, seed helpers)
+tests/               # Integration/E2E tests
+  integration/       # API + DB integration tests
+  e2e/               # End-to-end workflows
+  utils/             # Test helpers/factories
 alembic/             # Database migrations
-events/
-  events.jsonl       # 99 sample events (PEN/USD)
+events/              # Dataset (JSONL)
 ```
 
 ---
 
 ## SQL Queries (Q1-Q4)
-
 Advanced PostgreSQL queries demonstrating:
-- **Q1:** Top 10 restaurants by volume (CTEs, window functions)
-- **Q2:** Restaurants never refunded (anti-join with NOT EXISTS)
-- **Q3:** Payment velocity analysis (LAG, date arithmetic)
-- **Q4:** Commission accuracy check (HAVING, aggregates)
+- **Q1:** Restaurant balances by currency
+- **Q2:** Top 10 restaurants by net revenue (last 7 days)
+- **Q3:** Payout eligibility (min amount + idempotency by as_of)
+- **Q4:** Data integrity checks
 
 **File:** [`sql/queries.sql`](sql/queries.sql)
 
@@ -353,4 +398,4 @@ Advanced PostgreSQL queries demonstrating:
 - **[docs/ARCHITECTURE_STRATEGY.md](docs/ARCHITECTURE_STRATEGY.md)** - Complete
 
 ---
-**Last Updated:** January 1, 2026
+**Last Updated:** January 3, 2026

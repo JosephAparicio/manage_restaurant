@@ -590,7 +590,9 @@ What should happen if someone tries to delete a restaurant with existing events?
 
 ### Decision
 
-**Use `ON DELETE RESTRICT` for ALL foreign keys:**
+**Use `ON DELETE RESTRICT` for foreign keys by default.**
+
+**Exception:** `payout_items.payout_id → payouts.id` uses `ON DELETE CASCADE` because payout line items are derived rows that must not outlive their parent payout.
 
 ```sql
 CREATE TABLE processor_events (
@@ -599,6 +601,14 @@ CREATE TABLE processor_events (
         FOREIGN KEY (restaurant_id) 
         REFERENCES restaurants(id) 
         ON DELETE RESTRICT  -- ← Prevents deletion
+);
+
+CREATE TABLE payout_items (
+    payout_id BIGINT NOT NULL,
+    CONSTRAINT fk_payout
+        FOREIGN KEY (payout_id) 
+        REFERENCES payouts(id) 
+        ON DELETE CASCADE  -- ← Deletes derived line items
 );
 ```
 

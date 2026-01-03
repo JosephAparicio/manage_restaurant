@@ -24,13 +24,6 @@ class EventRepository:
         fee_cents: int,
         metadata_: Optional[dict] = None,
     ) -> tuple[ProcessorEvent, bool]:
-        stmt = select(ProcessorEvent).where(ProcessorEvent.event_id == event_id)
-        result = await self.session.execute(stmt)
-        existing_event = result.scalar_one_or_none()
-
-        if existing_event:
-            return existing_event, False
-
         event = ProcessorEvent(
             event_id=event_id,
             event_type=event_type,
@@ -41,9 +34,17 @@ class EventRepository:
             fee_cents=fee_cents,
             metadata_=metadata_,
         )
-        self.session.add(event)
-        await self.session.flush()
-        return event, True
+
+        try:
+            async with self.session.begin_nested():
+                self.session.add(event)
+                await self.session.flush()
+            return event, True
+        except IntegrityError:
+            existing_event = await self.get_by_event_id(event_id)
+            if existing_event:
+                return existing_event, False
+            raise
 
     async def get_by_event_id(self, event_id: str) -> Optional[ProcessorEvent]:
         stmt = select(ProcessorEvent).where(ProcessorEvent.event_id == event_id)

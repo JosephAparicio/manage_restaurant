@@ -1,10 +1,12 @@
+from datetime import date
 from typing import List, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.enums import PayoutStatus
-from app.db.models import Payout
+from app.db.models import Payout, PayoutItem
 from app.metrics import payouts_total
 
 
@@ -17,28 +19,58 @@ class PayoutRepository:
         restaurant_id: str,
         amount_cents: int,
         currency: str = "PEN",
+        as_of: Optional[date] = None,
         metadata_: Optional[dict] = None,
     ) -> Payout:
-        payout = Payout(
-            restaurant_id=restaurant_id,
-            amount_cents=amount_cents,
-            currency=currency,
-            status=PayoutStatus.CREATED,
-            metadata_=metadata_,
-        )
+        payout_kwargs: dict = {
+            "restaurant_id": restaurant_id,
+            "amount_cents": amount_cents,
+            "currency": currency,
+            "status": PayoutStatus.CREATED,
+            "metadata_": metadata_,
+        }
+        if as_of is not None:
+            payout_kwargs["as_of"] = as_of
+
+        payout = Payout(**payout_kwargs)
         self.session.add(payout)
         await self.session.flush()
         return payout
 
+    async def exists_for_as_of(
+        self, restaurant_id: str, currency: str, as_of: date
+    ) -> bool:
+        stmt = (
+            select(Payout.id)
+            .where(Payout.restaurant_id == restaurant_id)
+            .where(Payout.currency == currency)
+            .where(Payout.as_of == as_of)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def get_by_id(self, id: int) -> Optional[Payout]:
-        stmt = select(Payout).where(Payout.id == id)
+        stmt = select(Payout).options(selectinload(Payout.items)).where(Payout.id == id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def has_pending_payouts(self, restaurant_id: str) -> bool:
+    async def create_items(self, payout_id: int, items: list[tuple[str, int]]) -> None:
+        for item_type, amount_cents in items:
+            self.session.add(
+                PayoutItem(
+                    payout_id=payout_id,
+                    item_type=item_type,
+                    amount_cents=amount_cents,
+                )
+            )
+        await self.session.flush()
+
+    async def has_pending_payouts(self, restaurant_id: str, currency: str) -> bool:
         stmt = (
             select(Payout)
             .where(Payout.restaurant_id == restaurant_id)
+            .where(Payout.currency == currency)
             .where(Payout.status.in_([PayoutStatus.CREATED, PayoutStatus.PROCESSING]))
             .limit(1)
         )

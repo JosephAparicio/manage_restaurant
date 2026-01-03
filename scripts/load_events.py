@@ -14,7 +14,7 @@ class EventLoader:
 
     async def load_events_from_file(self, file_path: Path) -> Dict[str, Any]:
         if not file_path.exists():
-            raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
+            raise FileNotFoundError(f"File not found: {file_path}")
 
         events = []
         with open(file_path, "r", encoding="utf-8") as f:
@@ -130,7 +130,7 @@ async def main():
     args = parser.parse_args()
     file_path = Path(args.file)
 
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  File:     {file_path}")
     print(f"  API URL:  {args.url}")
     print(f"  Timeout:  {args.timeout}s")

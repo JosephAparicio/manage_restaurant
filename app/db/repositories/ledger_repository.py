@@ -54,6 +54,13 @@ class LedgerRepository:
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
+    async def get_total_balance(self, currency: str = "PEN") -> int:
+        stmt = select(func.coalesce(func.sum(LedgerEntry.amount_cents), 0)).where(
+            LedgerEntry.currency == currency
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
+
     async def get_available_balance_with_lock(
         self, restaurant_id: str, currency: str = "PEN"
     ) -> int:

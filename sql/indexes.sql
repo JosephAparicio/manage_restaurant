@@ -100,9 +100,14 @@ CREATE INDEX idx_payouts_pending
 CREATE INDEX idx_payouts_created 
     ON payouts(created_at DESC);
 
+-- Index for payout batch queries by currency + as_of
+CREATE INDEX idx_payouts_as_of
+    ON payouts(currency, as_of);
+
 COMMENT ON INDEX idx_payouts_restaurant_status IS 'Find payouts by restaurant and status';
 COMMENT ON INDEX idx_payouts_pending IS 'Partial index - only pending payouts (created, processing)';
 COMMENT ON INDEX idx_payouts_created IS 'Payout history with DESC order (recent first)';
+COMMENT ON INDEX idx_payouts_as_of IS 'Payout batch lookups (currency + as_of)';
 
 -- ============================================================================
 -- INDEX USAGE VALIDATION

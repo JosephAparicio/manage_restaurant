@@ -5,35 +5,23 @@ import httpx
 
 
 async def seed_payouts():
-    restaurants = [
-        "res_sushi_house",
-        "res_tacos_mexicanos",
-        "res_pasta_italiana",
-    ]
-
     api_url = "http://localhost:8000"
     timeout = 30.0
 
     print("Starting payout generation via API...\n")
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        for restaurant_id in restaurants:
-            try:
-                response = await client.post(
-                    f"{api_url}/v1/payouts/run",
-                    json={"restaurant_id": restaurant_id, "currency": "USD"},
-                    headers={"Content-Type": "application/json"},
-                )
+        response = await client.post(
+            f"{api_url}/v1/payouts/run",
+            json={"currency": "PEN", "as_of": "2025-12-27", "min_amount": 10000},
+            headers={"Content-Type": "application/json"},
+        )
 
-                if response.status_code == 202:
-                    print(f"Payout initiated for {restaurant_id}")
-                else:
-                    error = response.text[:200]
-                    print(
-                        f"Failed for {restaurant_id} - {response.status_code}: {error}"
-                    )
-            except Exception as e:
-                print(f"Error for {restaurant_id}: {e}")
+        if response.status_code == 202:
+            print("Payout batch initiated")
+        else:
+            error = response.text[:200]
+            print(f"Failed - {response.status_code}: {error}")
 
     print("\n--- Verification ---")
 

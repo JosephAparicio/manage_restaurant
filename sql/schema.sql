@@ -8,6 +8,7 @@
 
 -- Drop existing tables (for clean setup)
 DROP TABLE IF EXISTS ledger_entries CASCADE;
+DROP TABLE IF EXISTS payout_items CASCADE;
 DROP TABLE IF EXISTS payouts CASCADE;
 DROP TABLE IF EXISTS processor_events CASCADE;
 DROP TABLE IF EXISTS restaurants CASCADE;
@@ -27,8 +28,8 @@ CREATE TABLE restaurants (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     metadata JSONB,
     
-    CONSTRAINT check_restaurant_id_format 
-        CHECK (id ~ '^res_[a-zA-Z0-9_-]+$')
+    CONSTRAINT restaurant_id_format
+        CHECK (id LIKE 'res_%')
 );
 
 -- Comments
@@ -63,16 +64,13 @@ CREATE TABLE processor_events (
         REFERENCES restaurants(id) 
         ON DELETE RESTRICT,
     
-    CONSTRAINT check_event_type 
+    CONSTRAINT valid_event_type
         CHECK (event_type IN ('charge_succeeded', 'refund_succeeded', 'payout_paid')),
     
-    CONSTRAINT check_currency 
-        CHECK (currency ~ '^[A-Z]{3}$'),
-    
-    CONSTRAINT check_amount_cents_positive 
+    CONSTRAINT positive_amount
         CHECK (amount_cents >= 0),
     
-    CONSTRAINT check_fee_cents_positive 
+    CONSTRAINT positive_fee
         CHECK (fee_cents >= 0)
 );
 
@@ -87,7 +85,83 @@ COMMENT ON COLUMN processor_events.created_at IS 'When API received the event (m
 COMMENT ON COLUMN processor_events.metadata IS 'Raw webhook payload for debugging and audit';
 
 -- ============================================================================
--- TABLE 3: ledger_entries
+-- TABLE 3: payouts
+-- ============================================================================
+-- Purpose: Settlement records (mutable status only)
+-- Mutability: Mutable (status transitions: created → processing → paid/failed)
+-- Key Feature: Status machine with CHECK constraint for data integrity
+-- ============================================================================
+
+CREATE TABLE payouts (
+    id BIGSERIAL PRIMARY KEY,
+    restaurant_id VARCHAR(50) NOT NULL,
+    amount_cents BIGINT NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'PEN',
+    as_of DATE NOT NULL DEFAULT CURRENT_DATE,
+    status VARCHAR(50) NOT NULL DEFAULT 'created',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    paid_at TIMESTAMPTZ,
+    failure_reason TEXT,
+    metadata JSONB,
+    
+    CONSTRAINT fk_restaurant
+        FOREIGN KEY (restaurant_id) 
+        REFERENCES restaurants(id) 
+        ON DELETE RESTRICT,
+    
+    CONSTRAINT paid_at_consistency
+        CHECK (
+            (status = 'paid' AND paid_at IS NOT NULL) OR
+            (status != 'paid' AND paid_at IS NULL)
+        ),
+    
+    CONSTRAINT valid_payout_status
+        CHECK (status IN ('created', 'processing', 'paid', 'failed')),
+    
+    CONSTRAINT positive_payout_amount
+        CHECK (amount_cents > 0),
+    
+    CONSTRAINT uq_payout_restaurant_currency_asof
+        UNIQUE (restaurant_id, currency, as_of)
+);
+
+-- Comments
+COMMENT ON TABLE payouts IS 'Settlement records - status is mutable (created → processing → paid/failed)';
+COMMENT ON COLUMN payouts.status IS 'Payout state: created, processing, paid, failed';
+COMMENT ON COLUMN payouts.amount_cents IS 'Payout amount (always positive, money OUT)';
+COMMENT ON COLUMN payouts.as_of IS 'Payout run batch date';
+COMMENT ON COLUMN payouts.paid_at IS 'Timestamp when transfer completed (NULL until status=paid)';
+COMMENT ON COLUMN payouts.failure_reason IS 'Error message if status=failed';
+COMMENT ON COLUMN payouts.metadata IS 'Bank account, transfer reference, processor response';
+
+-- ============================================================================
+-- TABLE 4: payout_items
+-- ============================================================================
+-- Purpose: Payout breakdown lines (optional, but aligned with PDF response shape)
+-- Mutability: Immutable (INSERT only)
+-- ============================================================================
+
+CREATE TABLE payout_items (
+    id BIGSERIAL PRIMARY KEY,
+    payout_id BIGINT NOT NULL,
+    item_type VARCHAR(50) NOT NULL,
+    amount_cents BIGINT NOT NULL,
+
+    CONSTRAINT fk_payout
+        FOREIGN KEY (payout_id)
+        REFERENCES payouts(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT valid_payout_item_type
+        CHECK (item_type IN ('net_sales', 'fees', 'refunds'))
+);
+
+COMMENT ON TABLE payout_items IS 'Payout breakdown line items';
+COMMENT ON COLUMN payout_items.item_type IS 'Item type: net_sales, fees, refunds';
+COMMENT ON COLUMN payout_items.amount_cents IS 'Signed amount in cents (fees/refunds typically negative in ledger)';
+
+-- ============================================================================
+-- TABLE 5: ledger_entries
 -- ============================================================================
 -- Purpose: Financial ledger (double-entry inspired, immutable)
 -- Mutability: Immutable (INSERT only, no UPDATE/DELETE)
@@ -121,12 +195,27 @@ CREATE TABLE ledger_entries (
         REFERENCES payouts(id) 
         ON DELETE RESTRICT,
     
-    CONSTRAINT check_entry_type 
-        CHECK (entry_type IN ('sale', 'commission', 'refund', 'payout_reserve')),
-    
-    CONSTRAINT check_currency 
-        CHECK (currency ~ '^[A-Z]{3}$')
+    CONSTRAINT valid_entry_type
+        CHECK (entry_type IN ('sale', 'commission', 'refund', 'payout_reserve'))
 );
+
+-- ============================================================================
+-- INDEXES (match Alembic migrations)
+-- ============================================================================
+
+CREATE UNIQUE INDEX idx_processor_events_event_id ON processor_events(event_id);
+
+CREATE INDEX idx_payouts_pending ON payouts(restaurant_id, status)
+    WHERE status IN ('created', 'processing');
+
+CREATE INDEX idx_payouts_as_of ON payouts(currency, as_of);
+
+CREATE INDEX idx_payout_items_payout_id ON payout_items(payout_id);
+
+CREATE INDEX idx_ledger_available_at ON ledger_entries(available_at)
+    WHERE available_at IS NOT NULL;
+
+CREATE INDEX idx_ledger_restaurant_currency ON ledger_entries(restaurant_id, currency);
 
 -- Comments
 COMMENT ON TABLE ledger_entries IS 'Immutable financial ledger - balance calculated as SUM(amount_cents)';
@@ -136,54 +225,6 @@ COMMENT ON COLUMN ledger_entries.description IS 'Human-readable description for 
 COMMENT ON COLUMN ledger_entries.related_event_id IS 'Source event (NULL for payout_reserve entries)';
 COMMENT ON COLUMN ledger_entries.related_payout_id IS 'Related payout (NULL for event-based entries)';
 COMMENT ON COLUMN ledger_entries.available_at IS 'Maturity date - NULL means immediately available. Used for pending vs available balance';
-
--- ============================================================================
--- TABLE 4: payouts
--- ============================================================================
--- Purpose: Settlement records (mutable status only)
--- Mutability: Mutable (status transitions: created → processing → paid/failed)
--- Key Feature: Status machine with CHECK constraint for data integrity
--- ============================================================================
-
-CREATE TABLE payouts (
-    id BIGSERIAL PRIMARY KEY,
-    restaurant_id VARCHAR(50) NOT NULL,
-    amount_cents BIGINT NOT NULL,
-    currency VARCHAR(3) NOT NULL DEFAULT 'PEN',
-    status VARCHAR(50) NOT NULL DEFAULT 'created',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    paid_at TIMESTAMPTZ,
-    failure_reason TEXT,
-    metadata JSONB,
-    
-    CONSTRAINT fk_restaurant
-        FOREIGN KEY (restaurant_id) 
-        REFERENCES restaurants(id) 
-        ON DELETE RESTRICT,
-    
-    CONSTRAINT check_status 
-        CHECK (status IN ('created', 'processing', 'paid', 'failed')),
-    
-    CONSTRAINT check_currency 
-        CHECK (currency ~ '^[A-Z]{3}$'),
-    
-    CONSTRAINT check_amount_cents_positive 
-        CHECK (amount_cents > 0),
-    
-    CONSTRAINT check_paid_at_with_status
-        CHECK (
-            (status = 'paid' AND paid_at IS NOT NULL) OR
-            (status != 'paid' AND paid_at IS NULL)
-        )
-);
-
--- Comments
-COMMENT ON TABLE payouts IS 'Settlement records - status is mutable (created → processing → paid/failed)';
-COMMENT ON COLUMN payouts.status IS 'Payout state: created, processing, paid, failed';
-COMMENT ON COLUMN payouts.amount_cents IS 'Payout amount (always positive, money OUT)';
-COMMENT ON COLUMN payouts.paid_at IS 'Timestamp when transfer completed (NULL until status=paid)';
-COMMENT ON COLUMN payouts.failure_reason IS 'Error message if status=failed';
-COMMENT ON COLUMN payouts.metadata IS 'Bank account, transfer reference, processor response';
 
 -- ============================================================================
 -- END OF SCHEMA
