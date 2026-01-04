@@ -19,20 +19,20 @@ Short plan outlining key decisions and implementation strategy.
 
 ## 1. PROPOSED DATABASE SCHEMA
 
-**4 Core Tables:**
+**Core Tables:**
 - `restaurants` - Restaurant master data
 - `processor_events` - Webhook event log with UNIQUE constraint on event_id (idempotency)
 - `ledger_entries` - Immutable ledger (balance calculated, never stored)
 - `payouts` - Payout tracking
+- `payout_items` - Payout breakdown line items
 
 **Key Design Decisions:**
 - BIGINT for money (cents, no floats)
 - UNIQUE constraint on event_id for database-level idempotency
 - Immutable ledger (INSERT only, no UPDATE/DELETE)
-- 15 strategic indexes for performance
+- Strategic indexes for performance
 
-**Complete schema:** `sql/schema.sql`   
-**Index strategy:** `sql/indexes.sql`  
+**Schema source of truth:** `alembic/versions/0001_initial_schema.py`
 **Documentation:** `docs/DATABASE_DESIGN.md`
 
 ---
@@ -140,7 +140,7 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 - Project structure
 
 **Phase 2: Implementation** ✅ COMPLETE
-- SQLAlchemy models (4 tables)
+- SQLAlchemy models (5 tables)
 - Async repositories (restaurant, event, ledger, payout)
 - Services (event processor, ledger, balance calculator, payout generator)
 - API endpoints (4 endpoints with v1 prefix)

@@ -79,7 +79,6 @@ pytest -m concurrency
 
 ## Test Markers
 
-- `@pytest.mark.unit` - Unit tests (repository tests with real DB)
 - `@pytest.mark.integration` - Integration tests (API endpoint tests)
 - `@pytest.mark.e2e` - End-to-end tests (full system workflows)
 - `@pytest.mark.slow` - Tests that take significant time
@@ -128,7 +127,7 @@ pytest -m concurrency
 - Available balance excludes future-dated entries (available_at)
 - Pending balance includes future entries (7-day hold)
 - Multi-currency support (PEN/USD)
-- Correct commission deduction (2.5%)
+- Correct commission deduction based on `fee_cents` provided by the event payload
 
 ### Refund Policy (Priority #3)
 - refund_succeeded creates negative ledger entry

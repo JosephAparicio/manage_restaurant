@@ -38,10 +38,8 @@ def main():
     SELECT
         le.restaurant_id,
         SUM(le.amount_cents) AS available,
-        MAX(pe.occurred_at) AS last_event_at
+        MAX(le.created_at) AS last_event_at
     FROM ledger_entries le
-    LEFT JOIN processor_events pe
-        ON pe.event_id = le.related_event_id
     WHERE le.currency = 'PEN'
     GROUP BY le.restaurant_id
     ORDER BY available DESC;

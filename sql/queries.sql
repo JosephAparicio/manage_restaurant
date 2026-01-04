@@ -14,15 +14,17 @@
 -- ============================================================================
 
 -- PDF contract (for a given currency): restaurant_id, available, last_event_at.
--- Source of truth for last_event_at: processor_events.occurred_at.
+-- Source of truth for last_event_at: ledger_entries.created_at for entries linked to events.
 
 SELECT
     le.restaurant_id,
-    SUM(le.amount_cents) AS available,
-    MAX(pe.occurred_at) AS last_event_at
+    SUM(le.amount_cents) FILTER (
+        WHERE le.available_at IS NULL OR le.available_at <= NOW()
+    ) AS available,
+    MAX(le.created_at) FILTER (
+        WHERE le.related_event_id IS NOT NULL
+    ) AS last_event_at
 FROM ledger_entries le
-LEFT JOIN processor_events pe
-    ON pe.event_id = le.related_event_id
 WHERE le.currency = :currency
 GROUP BY le.restaurant_id
 ORDER BY available DESC;
@@ -144,7 +146,7 @@ Columns:
 Business Interpretation:
 - These restaurants can receive payouts immediately
 - Anti-join excludes restaurants with pending payouts (prevents double payout)
-- LATERAL join optimizes last_event_at lookup
+- Second anti-join excludes restaurants that already ran for the same :as_of (batch idempotency)
 */
 
 -- ============================================================================

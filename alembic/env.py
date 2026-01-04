@@ -9,7 +9,7 @@ from alembic import context
 
 from app.core.config import settings
 from app.db.base import Base
-from app.db.models import LedgerEntry, Payout, ProcessorEvent, Restaurant
+from app.db.models import LedgerEntry, Payout, PayoutItem, ProcessorEvent, Restaurant
 
 config = context.config
 

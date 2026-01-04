@@ -86,15 +86,15 @@ docker-compose exec app alembic upgrade head
 
 ### Load Sample Data
 
-The repository includes 100 sample events for testing:
-- 100 events in PEN
+The repository includes 99 sample events for testing:
+- 99 events in PEN
 - Mix of charge_succeeded, refund_succeeded, payout_paid
 
 ```bash
 # Load events from JSONL file (required by PDF specification)
 python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
 
-# Expected output: 100 events processed
+# Expected output: 99 events processed
 ```
 
 **Optional: Additional data population**
@@ -199,7 +199,7 @@ Get calculated balance from ledger
 - `available_cents`: matured funds available for payout (integer cents)
 - `pending_cents`: not-yet-matured funds (integer cents)
 - `total_cents`: `available_cents + pending_cents` (integer cents)
-- `last_event_at`: server-side timestamp when the most recent processor event was recorded/processed for this restaurant (nullable)
+- `last_event_at`: server-side timestamp of the most recent ledger write generated from a processor event for this restaurant (nullable)
 - `meta`: traceability metadata (see above)
 
 ### POST /v1/payouts/run
@@ -244,14 +244,16 @@ Prometheus metrics endpoint:
 
 ## Database Schema
 
-**4 Core Tables:**
+**Core Tables:**
 - `restaurants` - Master restaurant data
 - `processor_events` - Webhook log (UNIQUE constraint on event_id)
 - `ledger_entries` - Immutable ledger (balance source)
 - `payouts` - Payout records
+- `payout_items` - Payout breakdown line items
 
-**Files:** [`sql/schema.sql`](sql/schema.sql) | [`sql/indexes.sql`](sql/indexes.sql)  
-**Complete design:** [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md)
+**Source of truth (schema):** [`alembic/versions/0001_initial_schema.py`](alembic/versions/0001_initial_schema.py) 
+**Design rationale:** [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) 
+**SQL files:** `sql/` contains reference deliverables (schema/indexes/queries), but Alembic migrations are authoritative.
 
 ---
 
@@ -262,7 +264,7 @@ Prometheus metrics endpoint:
 **Rationale:**
 - Industry standard (Stripe, PayPal), work already performed, prevents abuse
 
-**Example:** Charge $100 → Restaurant gets $95 | Refund $100 → Restaurant owes $5.30
+**Example:** Charge 100.00 → Restaurant gets 96.50 (if `fee_cents` is 350) | Refund 100.00 → Restaurant owes 3.50 (commission is not reversed)
 
 **Complete justification:** [ADR-003: Commission NOT Refunded](docs/DESIGN_DECISIONS.md#adr-003-commission-not-refunded-on-refunds)
 

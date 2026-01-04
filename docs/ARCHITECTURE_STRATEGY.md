@@ -189,6 +189,7 @@ Model Layer (ORM)
 2. `processor_events` - Webhook log (immutable, UNIQUE on event_id)
 3. `ledger_entries` - Financial ledger (immutable, balance source)
 4. `payouts` - Settlement records (status mutable, amounts immutable)
+5. `payout_items` - Payout breakdown line items (derived, immutable)
 
 **Money Handling:**
 - BIGINT for all amounts (cents, not decimals)
@@ -390,8 +391,12 @@ Model Layer (ORM)
 
 ## RELATED DOCUMENTS
 
-- [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) - 10 Architecture Decision Records
-- [DATABASE_DESIGN.md](DATABASE_DESIGN.md) - Complete schema specification
+- [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) - Architecture Decision Records (ADRs)
+- [ARCHITECTURE_STRATEGY.md](ARCHITECTURE_STRATEGY.md) - Overall architecture principles
+- [../alembic/versions/0001_initial_schema.py](../alembic/versions/0001_initial_schema.py) - Authoritative schema definition (migrations)
+- [../sql/schema.sql](../sql/schema.sql) - Reference DDL deliverable (non-authoritative)
+- [../sql/indexes.sql](../sql/indexes.sql) - Reference index deliverable (non-authoritative)
+- [../sql/queries.sql](../sql/queries.sql) - Q1-Q4 deliverables with EXPLAIN ANALYZE
 
 ---
 

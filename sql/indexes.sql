@@ -1,6 +1,10 @@
 -- ============================================================================
 -- Restaurant Ledger System - Index Definitions
 -- ============================================================================
+-- ⚠️  REFERENCE ONLY - DO NOT EXECUTE DIRECTLY
+-- Authoritative source: alembic/versions/0001_initial_schema.py
+-- This file is for documentation and manual review only
+-- ============================================================================
 -- Purpose: Optimize critical queries for balance, payouts, and idempotency
 -- Strategy: Composite indexes, partial indexes, and UNIQUE constraints
 -- ============================================================================
@@ -40,12 +44,12 @@ CREATE INDEX idx_processor_events_type
 
 -- Composite index for restaurant + occurred_at (event history queries)
 CREATE INDEX idx_processor_events_restaurant_occurred 
-    ON processor_events(restaurant_id, occurred_at DESC);
+    ON processor_events(restaurant_id, occurred_at);
 
 COMMENT ON INDEX idx_processor_events_event_id IS 'CRITICAL: Enforces idempotency (UNIQUE constraint)';
 COMMENT ON INDEX idx_processor_events_restaurant IS 'Find all events for a restaurant';
 COMMENT ON INDEX idx_processor_events_type IS 'Filter events by type (charge_succeeded, refund_succeeded, etc.)';
-COMMENT ON INDEX idx_processor_events_restaurant_occurred IS 'Event history with DESC order (recent first)';
+COMMENT ON INDEX idx_processor_events_restaurant_occurred IS 'Event history by restaurant and occurrence time';
 
 -- ============================================================================
 -- INDEXES: ledger_entries
@@ -58,7 +62,7 @@ CREATE INDEX idx_ledger_restaurant_currency
 
 -- Composite index for ledger history queries (with DESC order)
 CREATE INDEX idx_ledger_restaurant_created 
-    ON ledger_entries(restaurant_id, created_at DESC);
+    ON ledger_entries(restaurant_id, created_at);
 
 -- Partial index for maturity window queries (available vs pending balance)
 -- Only indexes entries with future maturity dates (minority of records)
@@ -98,7 +102,7 @@ CREATE INDEX idx_payouts_pending
 
 -- Index for created_at (payout history queries)
 CREATE INDEX idx_payouts_created 
-    ON payouts(created_at DESC);
+    ON payouts(created_at);
 
 -- Index for payout batch queries by currency + as_of
 CREATE INDEX idx_payouts_as_of

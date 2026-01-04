@@ -140,7 +140,7 @@ GET /v1/restaurants/res_001/balance?currency=PEN
 - `available_cents`: Balance available for payout (matured funds)
 - `pending_cents`: Balance pending maturation (with maturity window)
 - `total_cents`: Sum of available + pending
-- `last_event_at`: Server-side timestamp when the most recent processor event was recorded/processed for this restaurant (nullable)
+- `last_event_at`: Server-side timestamp of the most recent ledger write generated from a processor event for this restaurant (nullable)
 
 **Balance Calculation:**
 - Calculated in real-time from `ledger_entries` table
@@ -269,6 +269,64 @@ GET /health
   "status": "healthy"
 }
 ```
+
+---
+
+### GET /metrics
+
+Prometheus metrics endpoint for monitoring and observability.
+
+**Request:**
+```http
+GET /metrics
+```
+
+**Response (200 OK):**
+```
+# HELP restaurant_events_total Total events processed
+# TYPE restaurant_events_total counter
+restaurant_events_total{event_type="charge_succeeded"} 150.0
+restaurant_events_total{event_type="refund_succeeded"} 12.0
+restaurant_events_total{event_type="payout_paid"} 8.0
+
+# HELP restaurant_ledger_entries_total Total ledger entries created
+# TYPE restaurant_ledger_entries_total counter
+restaurant_ledger_entries_total{entry_type="sale"} 150.0
+restaurant_ledger_entries_total{entry_type="commission"} 150.0
+restaurant_ledger_entries_total{entry_type="refund"} 12.0
+restaurant_ledger_entries_total{entry_type="payout_reserve"} 8.0
+
+# HELP restaurant_balance_total Current total balance across all accounts
+# TYPE restaurant_balance_total gauge
+restaurant_balance_total 1250000.0
+
+# HELP restaurant_payouts_total Total payouts executed
+# TYPE restaurant_payouts_total counter
+restaurant_payouts_total{status="created"} 5.0
+restaurant_payouts_total{status="paid"} 3.0
+
+# HELP http_requests_total Total HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="POST",path="/v1/processor/events",status="201"} 150.0
+http_requests_total{method="GET",path="/v1/restaurants/{id}/balance",status="200"} 320.0
+```
+
+**Business Metrics:**
+- `restaurant_events_total{event_type}` - Events by type (charge_succeeded, refund_succeeded, payout_paid)
+- `restaurant_ledger_entries_total{entry_type}` - Ledger entries by type (sale, commission, refund, payout_reserve)
+- `restaurant_balance_total` - Current total balance in PEN cents across all restaurants
+- `restaurant_payouts_total{status}` - Payouts by status (created, processing, paid, failed)
+
+**HTTP Metrics (Auto-instrumented):**
+- `http_requests_total` - Total requests by method, path, and status
+- `http_request_duration_seconds` - Request latency histogram
+- `http_requests_in_progress` - Current active requests
+
+**Use Cases:**
+- Monitor event processing rate
+- Track balance trends over time
+- Alert on failed payouts
+- Measure API latency and throughput
 
 ---
 
