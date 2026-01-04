@@ -139,7 +139,7 @@ docker-compose up
 python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
 
 # 3. Test Prometheus metrics
-python scripts/test_metrics.py
+python -m scripts.test_metrics
 
 # 4. Run SQL validation queries
 python -m scripts.test_queries
@@ -165,8 +165,12 @@ The PDF uses example field names like `amount` and `fee`. This service uses expl
 The PDF examples are treated as illustrative. This repository keeps the same data types and semantics (integer amounts in cents, no floats), while using more explicit field names.
 
 This API also includes a `meta` object in responses for traceability:
-- `meta.timestamp`: server-side response time in ISO 8601
- - `meta.request_id`: unique identifier useful for debugging/log correlation
+- Success responses include:
+  - `meta.timestamp`: server-side response time in ISO 8601
+  - `meta.request_id`: unique identifier useful for debugging/log correlation
+- Error responses include:
+  - `meta.timestamp`: server-side response time in ISO 8601
+  - `meta.path`: request path
 
 ### POST /v1/processor/events
 Process webhook events (idempotent: 201 first time, 200 if duplicate)

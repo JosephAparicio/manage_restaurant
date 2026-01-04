@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, cast
 from datetime import datetime, timezone, timedelta
 
 import pytest
@@ -25,7 +25,7 @@ def configure_db_for_tests():
 
 @pytest_asyncio.fixture(scope="function")
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=cast(Any, app))
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 

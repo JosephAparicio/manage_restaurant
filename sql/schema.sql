@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Restaurant Ledger System - Database Schema
 -- ============================================================================
--- Database: PostgreSQL 15+
+-- Database: PostgreSQL 17
 -- Purpose: Financial ledger with idempotency guarantees
 -- Features: Immutable ledger, row locking, maturity window, multi-currency
 -- ============================================================================

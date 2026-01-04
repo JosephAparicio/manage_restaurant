@@ -161,8 +161,7 @@ Authentication, rate limiting, webhook verification, multi-currency, retry logic
 - ✅ Metrics: GET /metrics (Prometheus)
   - HTTP auto-instrumentation (requests, latency, status)
   - Custom business metrics: events, ledger entries, balance, payouts
-  - Test script: `python scripts/test_metrics.py`
-
+  - Test script: `python -m scripts.test_metrics`
 
 ### Commit Strategy
 

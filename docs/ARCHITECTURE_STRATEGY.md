@@ -313,8 +313,11 @@ Model Layer (ORM)
 **Examples:**
 - `EVENT_INVALID_TYPE` - Unknown event type
 - `PAYOUT_INSUFFICIENT_BALANCE` - Balance too low
-- `LEDGER_BALANCE_CALCULATION_FAILED` - Balance query error
-- `VALIDATION_MISSING_FIELD` - Required field absent
+- `PAYOUT_ALREADY_PENDING` - Pending payout already exists
+- `RESTAURANT_NOT_FOUND` - Restaurant ID not found
+- `RESOURCE_NOT_FOUND` - Resource not found
+- `INTEGRITY_ERROR` - Database constraint violation
+- `INTERNAL_ERROR` - Unexpected internal error
 
 **Benefits:**
 - Machine-readable error codes
@@ -325,6 +328,7 @@ Model Layer (ORM)
 
 **Middleware Approach:**
 - Catch all `BaseAPIException` instances
+- Handle `IntegrityError` exceptions with a dedicated handler (returns `INTEGRITY_ERROR` or `RESTAURANT_NOT_FOUND` where applicable)
 - Format error response consistently
 - Log errors with context (stack trace)
 - Return appropriate HTTP status

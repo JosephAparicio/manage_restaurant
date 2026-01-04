@@ -287,7 +287,7 @@ All error responses follow a consistent structure:
     }
   },
   "meta": {
-    "timestamp": "2025-01-15T15:00:00Z",
+    "timestamp": "2025-01-15T15:05:00Z",
     "path": "/v1/endpoint/path"
   }
 }
@@ -301,6 +301,7 @@ All error responses follow a consistent structure:
 | 422 | `EVENT_INVALID_TYPE` | Unknown event type |
 | 404 | `RESOURCE_NOT_FOUND` | Resource not found |
 | 404 | `RESTAURANT_NOT_FOUND` | Restaurant ID not found |
+| 409 | `INTEGRITY_ERROR` | Database constraint violation |
 | 409 | `PAYOUT_INSUFFICIENT_BALANCE` | Insufficient balance for payout |
 | 409 | `PAYOUT_ALREADY_PENDING` | Pending payout already exists |
 | 500 | `DATABASE_ERROR` | Database operation failed |
@@ -308,13 +309,14 @@ All error responses follow a consistent structure:
 
 ### Global Exception Handler
 
-The API uses a global exception handler that catches all `BaseAPIException` instances and formats them consistently. Unhandled exceptions return a generic 500 error without exposing internal details.
+The API uses global exception handlers to format errors consistently:
+- `BaseAPIException` instances are returned using the standard `ErrorResponse` structure.
+- SQLAlchemy `IntegrityError` exceptions are mapped to a 409 response with error code `INTEGRITY_ERROR` (and in some FK cases, mapped to `RESTAURANT_NOT_FOUND`).
+- Unhandled exceptions return a generic 500 error without exposing internal details.
 
 ---
 
 ## TESTING EXAMPLES
-
-### cURL Commands
 
 **1. Process Event:**
 ```bash

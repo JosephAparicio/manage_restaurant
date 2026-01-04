@@ -45,13 +45,13 @@ tests/
 
 2. **NullPool for asyncpg**: Configured in conftest.py to prevent connection reuse issues with asyncpg concurrent operations
 
-3. **No Cleanup Fixtures**: Tests designed to work with accumulated data or fresh database - uses explicit TRUNCATE before test runs
+3. **Automatic Cleanup Fixture**: Tests use an `autouse` fixture that truncates tables between tests to ensure isolation
 
 ## Running Tests
 
 ### All Tests with Coverage
 ```bash
-docker exec -e PGPASSWORD=restaurant_pass_dev restaurant_ledger_db psql -U restaurant_user -d restaurant_ledger -c "TRUNCATE TABLE ledger_entries, processor_events, payouts, restaurants RESTART IDENTITY CASCADE;"; docker exec restaurant_ledger_api python -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
+docker-compose exec app python -m pytest tests/ --cov=app --cov-report=html --cov-report=term-missing
 ```
 
 Open coverage report: `htmlcov/index.html`
