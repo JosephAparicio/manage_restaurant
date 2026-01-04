@@ -93,8 +93,6 @@ The repository includes 99 sample events for testing:
 ```bash
 # Load events from JSONL file (required by PDF specification)
 python -m scripts.load_events --file events/events.jsonl --url http://localhost:8000
-
-# Expected output: 99 events processed
 ```
 
 **Optional: Additional data population**
